@@ -176,9 +176,21 @@ NetValor/
 
 ### Getting started
 
-The repository is in early development. **A working local installation is not available yet.** Once the first end-to-end implementation is committed, this section will include tested setup instructions for Python, Node.js, environment variables, the knowledge index and the frontend.
+The repository is in early development. The backend API skeleton is available locally; the frontend and AI/RAG features are still in development.
 
-The intended development environment is **Python 3.11+**, **Node.js 20+**, with **Ollama** optional for local model inference. Secrets and `.env` files should never be committed.
+To run the backend from the repository root in PowerShell:
+
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
+```
+
+Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. The current API includes health, calculation and local JSON profile/memory endpoints; chat, retrieval and the frontend are not implemented yet.
+
+The intended development environment is **Python 3.11+**, **Node.js 20+**, with **Ollama** optional for future local model inference. Secrets and `.env` files should never be committed.
 
 ## Why I'm building this
 

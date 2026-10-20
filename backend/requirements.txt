@@ -1,1 +1,4 @@
+fastapi
+uvicorn[standard]
+httpx
 pytest>=8.0
