@@ -7,7 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import Depends, FastAPI, HTTPException, Path as PathParameter, Request
+from fastapi import Depends, FastAPI, HTTPException, Path as PathParameter, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -28,6 +28,9 @@ from app.memory import (
     ProfileNotFoundError,
     UserProfile,
 )
+from app.knowledge.embeddings import EmbeddingError
+from app.knowledge.lessons import load_lessons
+from app.retrieval import RetrievalError, search as search_lessons
 
 
 class HealthResponse(BaseModel):
@@ -94,6 +97,47 @@ class EmergencyFundResponse(BaseModel):
     percent_complete: Decimal
 
 
+class LessonSummary(BaseModel):
+    """Public index fields for one learning-path lesson."""
+
+    id: str
+    title: str
+    module: str
+    order: int
+
+
+class LessonDetail(LessonSummary):
+    """A lesson and its Markdown content."""
+
+    content: str
+
+
+class SearchMetadata(BaseModel):
+    """Lesson metadata attached to a retrieved chunk."""
+
+    lesson_id: str
+    title: str
+    module: str
+    heading: str
+    source_urls: list[str]
+    review_status: str
+    embedding_model: str
+
+
+class SearchResult(BaseModel):
+    """One retrieved lesson chunk and its cosine similarity."""
+
+    chunk: str
+    score: float
+    metadata: SearchMetadata
+
+
+class SearchResponse(BaseModel):
+    """Search results ordered by relevance."""
+
+    results: list[SearchResult]
+
+
 _default_origins = "http://localhost:3000"
 _cors_origins = [
     origin.strip()
@@ -103,6 +147,7 @@ _cors_origins = [
 
 _backend_dir = Path(__file__).resolve().parents[1]
 profile_store = JsonProfileStore(_backend_dir / "data" / "profiles")
+_lessons_dir = _backend_dir / "app" / "knowledge" / "lessons"
 
 
 @asynccontextmanager
@@ -145,6 +190,52 @@ def _profile_or_404(store: JsonProfileStore, user_id: str) -> UserProfile:
 def health() -> HealthResponse:
     """Return a basic health status."""
     return HealthResponse(status="ok")
+
+
+@app.get("/api/lessons", response_model=list[LessonSummary])
+def list_lessons() -> list[LessonSummary]:
+    """List the available learning-path lessons in their intended order."""
+    lessons = load_lessons(_lessons_dir)
+    return [
+        LessonSummary(
+            id=lesson.metadata["id"],
+            title=lesson.metadata["title"],
+            module=lesson.metadata["module"],
+            order=lesson.metadata["order"],
+        )
+        for lesson in lessons
+    ]
+
+
+@app.get("/api/lessons/{lesson_id}", response_model=LessonDetail)
+def get_lesson(lesson_id: str) -> LessonDetail:
+    """Return one full lesson, excluding its authoring front matter."""
+    for lesson in load_lessons(_lessons_dir):
+        if lesson.metadata["id"] == lesson_id:
+            return LessonDetail(
+                id=lesson.metadata["id"],
+                title=lesson.metadata["title"],
+                module=lesson.metadata["module"],
+                order=lesson.metadata["order"],
+                content=lesson.content,
+            )
+    raise HTTPException(status_code=404, detail=f"Lesson '{lesson_id}' was not found.")
+
+
+@app.get("/api/search", response_model=SearchResponse)
+def search(
+    q: str = Query(min_length=1),
+    k: int = Query(default=4, ge=1, le=20),
+    module: str | None = None,
+) -> SearchResponse:
+    """Search indexed lesson passages without generating an answer."""
+    try:
+        results = search_lessons(q, k=k, module=module)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (RetrievalError, EmbeddingError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return SearchResponse(results=results)
 
 
 @app.post(

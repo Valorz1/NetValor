@@ -110,7 +110,7 @@ The intended answer flow is:
 | **Backend** | Python, FastAPI | APIs, user profiles and application logic |
 | **RAG orchestration** | LangChain | Retrieval and prompt assembly |
 | **Vector store** | ChromaDB | Indexed lesson passages |
-| **Embeddings** | Sentence Transformers | Semantic search over educational material |
+| **Embeddings** | Ollama embedding models | Semantic search over educational material |
 | **Language model** | Ollama or a hosted model API | Generate explanations from retrieved context |
 | **Application database** | SQLite, later PostgreSQL | Store goals, progress and user-managed memory |
 | **Evaluation** | RAGAS and manual testing | Check retrieval quality, factual grounding and safety |
@@ -144,8 +144,8 @@ These are **design requirements**. They will need to be implemented, tested and 
 
 - [x] Define the product concept and UK financial-education focus.
 - [x] Complete five desktop UI designs and their mobile counterparts in Figma.
-- [ ] **Sprint 1 — Content:** Draft and review 30–50 introductory lessons on budgeting and debt.
-- [ ] **Sprint 2 — Retrieval:** Build the ingestion pipeline, embeddings and vector search.
+- [ ] **Sprint 1 — Content:** Review the eight original introductory lessons on budgeting, debt and saving.
+- [x] **Sprint 2 — Retrieval:** Build the ingestion pipeline, embeddings and vector search.
 - [ ] **Sprint 3 — AI backend:** Create the FastAPI chat endpoint, streamed answers, citations and user-controlled memory.
 - [ ] **Sprint 4 — Application:** Implement the Next.js dashboard, co-pilot, goals and budgeting calculator.
 - [ ] **Sprint 5 — Quality:** Evaluate with 50–100 representative questions, calculation tests and safety checks.
@@ -161,8 +161,10 @@ NetValor/
 │       ├── chat.py                 # Retrieval and responses
 │       ├── memory.py               # User-controlled context
 │       ├── finance.py              # Deterministic calculations
+│       ├── retrieval.py            # Lesson vector search
 │       └── knowledge/
-│           ├── lessons/            # Reviewed learning materials
+│           ├── lessons/            # Original UK learning materials (draft)
+│           ├── embeddings.py       # Ollama embedding client
 │           └── scripts/
 │               ├── ingest.py       # Content indexing
 │               └── tests/
@@ -188,9 +190,23 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
 ```
 
-Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. The current API includes health, calculation and local JSON profile/memory endpoints; chat, retrieval and the frontend are not implemented yet.
+Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. The API includes health, calculation, local JSON profile/memory, lesson-listing and semantic lesson-search endpoints. Lesson search uses ChromaDB and Ollama embeddings; it does not generate chat answers. All supplied lessons are drafts and need a human fact review before release.
 
-The intended development environment is **Python 3.11+**, **Node.js 20+**, with **Ollama** optional for future local model inference. Secrets and `.env` files should never be committed.
+To create the local lesson index, install and start [Ollama](https://ollama.com/), then run these commands from PowerShell at the repository root:
+
+```powershell
+ollama pull embeddinggemma-2:270m
+cd backend
+$env:EMBEDDING_MODEL = "embeddinggemma-2:270m"
+$env:CHROMA_DIR = "data/chroma"
+$env:OLLAMA_URL = "http://localhost:11434"
+python -m app.knowledge.scripts.ingest
+python -m uvicorn app.main:app --reload
+```
+
+In `/docs`, expand **GET `/api/search`**, choose **Try it out**, enter a question such as `Why does my credit card balance go down so slowly?`, and execute. The endpoint returns matching lesson chunks, similarity scores and source metadata. **GET `/api/lessons`** and **GET `/api/lessons/{lesson_id}`** list and serve the source lessons used to build the index. Configuration examples are in `backend/.env.example`; copy values into your shell or local environment as needed.
+
+The intended development environment is **Python 3.11+**, **Node.js 20+**, with Ollama used for local embeddings. Secrets and `.env` files should never be committed.
 
 ## Why I'm building this
 
