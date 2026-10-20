@@ -1,226 +1,203 @@
+<div align="center">
+
 # NetValor
 
-**An AI financial-literacy teacher that adapts to your situation and remembers your goals.**
+### Understand your money. Learn at your pace. Make informed decisions.
 
-NetValor is a web app that helps people understand their own money. Instead of generic advice, it gives plain-English explanations grounded in trusted UK sources, and it connects every answer to the user's own goals: paying off a credit card, building a safety net, or simply understanding where their money goes.
+**A UK-focused financial-literacy platform designed to make money management easier to understand.**
 
-> 🚧 **Status: early development.** The UI design is complete (desktop and mobile). The backend and frontend code are in progress. See the [roadmap](#roadmap).
+NetValor is an early-stage web app concept combining practical financial education, personal goals and a source-grounded AI learning companion. The aim is to help people understand *why* something matters for their finances—not just tell them what to do.
 
----
+[![Explore interactive prototype](https://img.shields.io/badge/Explore_Interactive_Prototype-Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white)](https://www.figma.com/proto/YuR50qCdlhFfWwy9fbVoRb/NetValor-UI-UX?node-id=2-1194&p=f&scaling=min-zoom&content-scaling=fixed&page-id=0%3A1)
+[![View design file](https://img.shields.io/badge/View_Design_File-Figma-0C8CE9?style=for-the-badge&logo=figma&logoColor=white)](https://www.figma.com/design/YuR50qCdlhFfWwy9fbVoRb/Untitled)
 
-## Contents
+![Development status](https://img.shields.io/badge/Status-Early_Development-7A6F45?style=flat-square)
+![Focus](https://img.shields.io/badge/Focus-UK_Financial_Education-215641?style=flat-square)
+![Approach](https://img.shields.io/badge/Approach-RAG_%2B_Personalised_Learning-173F30?style=flat-square)
 
-- [Why NetValor](#why-netvalor)
-- [Features](#features)
-- [Design](#design)
-- [How it works](#how-it-works)
-- [Tech stack](#tech-stack)
-- [Project structure](#project-structure)
-- [Getting started](#getting-started)
-- [Knowledge base and sources](#knowledge-base-and-sources)
-- [Safety and responsible AI](#safety-and-responsible-ai)
-- [Roadmap](#roadmap)
-- [License](#license)
+</div>
+
+> [!IMPORTANT]
+> **Project status — October 2026:** The desktop and mobile UI designs are complete in Figma. The frontend, backend and AI features are still in development. The feature descriptions and architecture below explain the intended product, not a fully functioning release.
 
 ---
 
-## Why NetValor
+## At a glance
 
-There is plenty of financial information online, but it's scattered, full of jargon and rarely tells you how it applies to *you*. NetValor aims to democratise financial education by acting as an impartial co-pilot that:
-
-- **teaches**, rather than sells: no products, no commission
-- **remembers** your long-term goals, so every answer builds on the last
-- **shows its working**: sources are cited, and calculations come from tested code, not the language model
-- **knows its limits**: it says when it's unsure and points people in financial difficulty to free, regulated debt advice
-
-## Features
-
-| Area | What it does |
+| | |
 | --- | --- |
-| **Overview** | A calm snapshot of your money: breathing room, emergency fund, debt, and a single "next best step" |
-| **My co-pilot** | A chat tutor with contextual memory. It answers questions using your remembered goals and retrieved lesson content, and shows what it's keeping in mind |
-| **My money** | Income, spending by category and what's left after commitments |
-| **Learning path** | Short, personalised lessons that build from cash flow to debt to saving |
-| **Goals** | Progress toward goals such as a 3-month safety net or becoming debt-free, with milestones |
+| **The problem** | Financial information can be scattered, jargon-heavy and difficult to apply to everyday decisions. |
+| **The idea** | A personal financial-literacy teacher that explains concepts in plain English and adapts lessons to the user's goals. |
+| **Who it's for** | People in the UK who want to build confidence with budgeting, debt, savings and other money topics. |
+| **What makes it different** | UK-focused learning content, transparent sources, user-controlled contextual memory and calculations handled by code. |
+| **Current milestone** | Interactive UI/UX prototype for desktop and mobile. |
 
-**Built-in principles:** user-controlled memory (view, edit or delete what's remembered), private by design, and education rather than regulated financial advice.
+## The experience
 
-## Design
+NetValor is being designed around five connected areas:
 
-The full UI is designed in Figma, with five desktop screens and their mobile versions:
+| Area | Planned experience |
+| :--- | :--- |
+| **Overview** | A straightforward snapshot of income, spending, debt, emergency savings and a possible next learning step. |
+| **My co-pilot** | Ask financial questions in everyday language and receive educational answers supported by source references. |
+| **My money** | Understand money coming in, spending by category and what remains after commitments. |
+| **Learning path** | Follow short lessons that develop from cash flow and budgeting to debt management and saving. |
+| **Goals** | Break a goal, such as building an emergency fund or reducing debt, into understandable milestones. |
 
-🎨 [NetValor design file (Figma)](https://www.figma.com/design/YuR50qCdlhFfWwy9fbVoRb/Untitled)
+The long-term aim is to connect these parts into one learning experience: understand your position, learn a concept, explore your options and track progress.
 
-- **Typography:** Lora (headings) and Inter (body)
-- **Palette:** deep green `#173F30`, primary `#215641`, warm neutrals `#F6F5F0`, accent `#B9D19F`
-- **Accessibility:** body and secondary text meet WCAG AA contrast (secondary grey `#646C65`)
+## Explore the design
 
-## How it works
+**The interactive Figma prototype is the best place to see the project right now.** It contains the completed design work while development continues.
 
-NetValor uses **Retrieval-Augmented Generation (RAG)**. The model never answers from memory alone: it retrieves relevant lesson passages, combines them with the user's saved goals, and generates an explanation that cites its sources.
+### [→ Open the interactive NetValor prototype](https://www.figma.com/proto/YuR50qCdlhFfWwy9fbVoRb/NetValor-UI-UX?node-id=2-1194&p=f&scaling=min-zoom&content-scaling=fixed&page-id=0%3A1)
+
+[Open the Figma design file](https://www.figma.com/design/YuR50qCdlhFfWwy9fbVoRb/Untitled)
+
+The design includes **five desktop screens and corresponding mobile layouts**, with a visual language intended to feel calm, legible and accessible.
+
+| Design element | Choice |
+| --- | --- |
+| Headings | **Lora** |
+| Interface and body text | **Inter** |
+| Dark green | `#173F30` |
+| Primary green | `#215641` |
+| Warm background | `#F6F5F0` |
+| Soft accent | `#B9D19F` |
+| Secondary text | `#646C65` |
+
+Accessibility is part of the design process, including attention to readable contrast and responsive layouts. A full accessibility audit is still planned.
+
+<!-- OPTIONAL SCREENSHOT: Export a frame from Figma as assets/netvalor-preview.png,
+     commit it to the repository, then uncomment the line below.
+![NetValor dashboard design](assets/netvalor-preview.png)
+-->
+
+## How NetValor is intended to work
+
+NetValor's planned AI layer uses **Retrieval-Augmented Generation (RAG)** so explanations can be built around selected financial-education material rather than unsupported model output.
 
 ```mermaid
-flowchart LR
-    U[User question] --> API[FastAPI backend]
-    API --> M[(User memory<br/>goals & preferences)]
-    API --> R[Retriever]
-    R --> V[(ChromaDB<br/>lesson passages)]
-    API --> CALC[Calculation engine<br/>debt payoff, savings]
-    M --> P[Prompt builder]
-    V --> P
-    CALC --> P
-    P --> LLM[LLM]
-    LLM -->|streamed answer + citations| UI[Next.js frontend]
+flowchart TD
+    U["User asks a question"] --> UI["Next.js interface"]
+    UI --> API["FastAPI backend"]
+    API --> M["User goals and memory"]
+    API --> R["Retrieve relevant lessons"]
+    R --> DB[("ChromaDB: approved UK content")]
+    API --> C["Python calculation engine"]
+    M --> P["Assemble evidence and context"]
+    DB --> P
+    C --> P
+    P --> LLM["Language model"]
+    LLM --> OUT["Explanation with sources"]
+    OUT --> UI
 ```
 
-1. **Retrieve.** The question is embedded and matched against approved lesson passages in ChromaDB, filtered by topic and UK jurisdiction.
-2. **Remember.** The user's goals (for example "debt-free by June 2027") are loaded from their profile.
-3. **Calculate.** Any numbers, such as payoff dates or interest saved, come from a tested Python calculation engine.
-4. **Generate.** The LLM writes a plain-English answer from that evidence and streams it to the UI, with sources.
+The intended answer flow is:
 
-## Tech stack
+1. **Retrieve:** Find relevant passages from approved learning materials, tagged by topic and UK jurisdiction.
+2. **Remember:** Use only the goals and context the user has chosen to save.
+3. **Calculate:** Use tested Python functions for figures such as repayment estimates instead of relying on the language model's arithmetic.
+4. **Explain:** Produce a plain-English educational response, cite its sources and acknowledge uncertainty when evidence is insufficient.
 
-| Layer | Technology | Purpose |
-| --- | --- | --- |
-| Frontend | Next.js, React, TypeScript | Type-safe UI with real-time streaming responses |
-| Backend | Python, FastAPI | API routing, user profiles, memory and progress |
-| RAG | LangChain | Retrieval, prompt assembly and LLM orchestration |
-| Vector DB | ChromaDB | Stores embedded lesson passages |
-| Embeddings | Sentence Transformers | Turns text into vectors for search |
-| LLM | Ollama (local) or a hosted API model | Generates explanations |
-| Database | SQLite → PostgreSQL | Profiles, goals and learning progress |
-| Evaluation | RAGAS + manual review | Measures retrieval and answer quality |
+> The architecture is a **development plan**, not a claim that the end-to-end RAG pipeline has been implemented.
 
-## Project structure
+## Planned tech stack
 
-```
-netvalor/
-├── backend/
-│   └── app/
-│       ├── main.py            # FastAPI app and routes
-│       ├── chat.py            # RAG pipeline and streaming
-│       ├── memory.py          # User goals and remembered context
-│       ├── finance.py         # Calculation engine (payoff, savings)
-│       └── knowledge/
-│           ├── lessons/       # Approved lesson passages (Markdown + metadata)
-│           └── scripts/
-│               ├── ingest.py  # Chunk, embed and load into ChromaDB
-│               └── tests/
-├── frontend/
-│   ├── app/                   # Next.js App Router pages
-│   ├── components/            # UI components (sidebar, chat, cards)
-│   └── lib/                   # API client and streaming helpers
-├── LICENSE
-└── README.md
-```
+| Layer | Technology | Intended role |
+| :--- | :--- | :--- |
+| **Frontend** | Next.js, React, TypeScript | Responsive interface and streamed responses |
+| **Backend** | Python, FastAPI | APIs, user profiles and application logic |
+| **RAG orchestration** | LangChain | Retrieval and prompt assembly |
+| **Vector store** | ChromaDB | Indexed lesson passages |
+| **Embeddings** | Sentence Transformers | Semantic search over educational material |
+| **Language model** | Ollama or a hosted model API | Generate explanations from retrieved context |
+| **Application database** | SQLite, later PostgreSQL | Store goals, progress and user-managed memory |
+| **Evaluation** | RAGAS and manual testing | Check retrieval quality, factual grounding and safety |
 
-## Getting started
+## UK knowledge base
 
-> These steps describe the intended setup. They'll work once the first backend and frontend code is committed.
+The goal is to build original, beginner-friendly lessons using trustworthy UK references, including:
 
-### Prerequisites
+- [MoneyHelper](https://www.moneyhelper.org.uk/) — money guidance and educational resources.
+- [Financial Conduct Authority](https://www.fca.org.uk/) — financial regulation and consumer information.
+- [GOV.UK / HMRC](https://www.gov.uk/browse/tax) — UK tax information and government guidance.
+- [StepChange](https://www.stepchange.org/) — free debt advice and support.
+- [Citizens Advice](https://www.citizensadvice.org.uk/) — consumer rights and practical guidance.
 
-- Python 3.11+
-- Node.js 20+
-- [Ollama](https://ollama.com) (optional, for running a local model)
+**Source quality and reuse matter.** Public information is not automatically free to copy into a dataset. The project plans to record source URLs, licensing, review status and effective dates, and to use original lesson summaries or licensed material where appropriate. Time-sensitive information such as tax thresholds needs an applicable tax year.
 
-### 1. Clone
+## Responsible AI by design
 
-```bash
-git clone https://github.com/Valorz1/NetValor.git
-cd NetValor
-```
+Personal-finance education comes with real risks. These are the safeguards NetValor is being designed around:
 
-### 2. Backend
+- **Education before recommendations:** Explain concepts, choices and trade-offs; do not present the app as a source of regulated financial advice.
+- **Evidence over confidence:** Cite the source material used and say when the evidence is incomplete.
+- **Calculations in code:** Check financial figures with dedicated, tested functions.
+- **User control:** Let users view, update and remove information saved about their goals.
+- **Sensitive situations:** Direct users experiencing urgent debt problems to appropriate free support rather than pretending a chatbot can resolve everything.
+- **Privacy by design:** Avoid collecting bank passwords, login credentials or full account numbers.
 
-```bash
-cd backend
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
-pip install -r requirements.txt
-cp .env.example .env             # then edit values
-
-python app/knowledge/scripts/ingest.py   # build the vector index
-uvicorn app.main:app --reload            # http://localhost:8000
-```
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev                      # http://localhost:3000
-```
-
-### Environment variables
-
-| Variable | Example | Description |
-| --- | --- | --- |
-| `LLM_PROVIDER` | `ollama` | `ollama`, or a hosted provider |
-| `LLM_MODEL` | `llama3.1` | Model name for the chosen provider |
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence Transformers model |
-| `CHROMA_DIR` | `./data/chroma` | Where the vector index is stored |
-| `CORS_ORIGINS` | `http://localhost:3000` | Allowed frontend origin |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend URL used by the frontend |
-
-Never commit `.env` files or API keys.
-
-## Knowledge base and sources
-
-Lesson content is UK-focused and grounded in trusted sources such as MoneyHelper, the Financial Conduct Authority (FCA), HMRC / GOV.UK and StepChange.
-
-**Licensing matters.** Publicly available doesn't mean free to reuse. NetValor's approach:
-
-- **GOV.UK / HMRC** content is published under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/) and may be ingested with attribution.
-- **MoneyHelper** materials are licensed for non-commercial use with no derivatives ([terms](https://maps.org.uk/en/about-us/terms-and-conditions)), so they aren't scraped. They're linked and cited, and lessons are written as original summaries.
-- **Other sources** (FCA, StepChange, Citizens Advice) are linked and cited until their reuse terms are confirmed.
-
-Each passage stores metadata for traceability:
-
-```json
-{
-  "document_id": "debt_001",
-  "title": "Understanding credit card interest",
-  "module": "Build your debt strategy",
-  "difficulty": "beginner",
-  "jurisdiction": "UK",
-  "source": "MoneyHelper",
-  "source_url": "https://www.moneyhelper.org.uk/...",
-  "licence": "original-summary",
-  "retrieved_at": "2026-10-19",
-  "review_status": "approved"
-}
-```
-
-Time-sensitive facts such as tax bands and allowances carry a tax-year or effective-date field, so outdated figures are never used silently.
-
-## Safety and responsible AI
-
-- **Education, not advice.** NetValor explains options and trade-offs. It does not recommend specific regulated products. A disclaimer alone doesn't decide whether something counts as regulated advice, so features are reviewed against FCA guidance as the scope grows.
-- **Financial difficulty.** If a user mentions rent arrears, bailiffs or threatened disconnection, the co-pilot prioritises signposting to free debt advice over repayment optimisation.
-- **Grounded answers.** Factual claims must be supported by retrieved passages, and the co-pilot says when the evidence is insufficient.
-- **Tested numbers.** All calculations come from unit-tested code, including edge cases such as zero income or unaffordable repayments.
-- **Privacy.** No bank credentials or account numbers are collected. Users can view, edit and delete their remembered context.
+These are **design requirements**. They will need to be implemented, tested and reviewed before release.
 
 ## Roadmap
 
-- [x] UI design: 5 desktop screens and mobile versions (Figma)
-- [ ] **Sprint 1:** write 30–50 approved lesson passages for budgeting and debt
-- [ ] **Sprint 2:** ingestion pipeline and vector search
-- [ ] **Sprint 3:** FastAPI chat endpoint with streaming, citations and memory
-- [ ] **Sprint 4:** Next.js dashboard, co-pilot chat and budgeting calculator
-- [ ] **Sprint 5:** evaluation (50–100 test questions) and safety checks
-- [ ] Later: savings, investing, tax and pensions modules; onboarding; accessibility audit
+- [x] Define the product concept and UK financial-education focus.
+- [x] Complete five desktop UI designs and their mobile counterparts in Figma.
+- [ ] **Sprint 1 — Content:** Draft and review 30–50 introductory lessons on budgeting and debt.
+- [ ] **Sprint 2 — Retrieval:** Build the ingestion pipeline, embeddings and vector search.
+- [ ] **Sprint 3 — AI backend:** Create the FastAPI chat endpoint, streamed answers, citations and user-controlled memory.
+- [ ] **Sprint 4 — Application:** Implement the Next.js dashboard, co-pilot, goals and budgeting calculator.
+- [ ] **Sprint 5 — Quality:** Evaluate with 50–100 representative questions, calculation tests and safety checks.
+- [ ] **Later:** Expand into saving, investing, pensions and tax; add onboarding and complete an accessibility audit.
 
-## License
+## Project layout (planned)
 
-Released under the [MIT License](LICENSE).
+```text
+NetValor/
+├── backend/
+│   └── app/
+│       ├── main.py                 # API entry point
+│       ├── chat.py                 # Retrieval and responses
+│       ├── memory.py               # User-controlled context
+│       ├── finance.py              # Deterministic calculations
+│       └── knowledge/
+│           ├── lessons/            # Reviewed learning materials
+│           └── scripts/
+│               ├── ingest.py       # Content indexing
+│               └── tests/
+├── frontend/
+│   ├── app/                        # Next.js routes
+│   ├── components/                 # Reusable UI components
+│   └── lib/                        # API client and helpers
+├── README.md
+└── LICENSE
+```
+
+### Getting started
+
+The repository is in early development. **A working local installation is not available yet.** Once the first end-to-end implementation is committed, this section will include tested setup instructions for Python, Node.js, environment variables, the knowledge index and the frontend.
+
+The intended development environment is **Python 3.11+**, **Node.js 20+**, with **Ollama** optional for local model inference. Secrets and `.env` files should never be committed.
+
+## Why I'm building this
+
+I started NetValor because learning about personal finance should not depend on knowing the right jargon or already understanding the system. I want to explore how software and carefully grounded AI can make financial education clearer, more personal and more useful—without turning it into product sales or pretending a chatbot is a financial adviser.
+
+The project also gives me the opportunity to build and evaluate a full-stack RAG application: from interface design and content preparation to retrieval, APIs, testing and responsible AI behaviour.
+
+## Licence
+
+The project is intended to use the [MIT License](LICENSE). Check the repository for the licence file before reusing code.
 
 ---
 
-*NetValor is an educational project. It provides financial education, not regulated financial advice. For help with debt, contact a free service such as [MoneyHelper](https://www.moneyhelper.org.uk) or [StepChange](https://www.stepchange.org).*
+<div align="center">
+
+**NetValor is an educational software project, not a financial adviser.**
+
+For free debt support in the UK, visit [MoneyHelper](https://www.moneyhelper.org.uk/) or [StepChange](https://www.stepchange.org/).
+
+[↑ Back to top](#netvalor)
+
+</div>
