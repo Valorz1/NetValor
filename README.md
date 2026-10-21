@@ -18,7 +18,7 @@ NetValor is an early-stage web app concept combining practical financial educati
 </div>
 
 > [!IMPORTANT]
-> **Project status — October 2026:** The desktop and mobile UI designs are complete in Figma. The frontend, backend and AI features are still in development. The feature descriptions and architecture below explain the intended product, not a fully functioning release.
+> **Project status — October 2026:** The desktop and mobile UI designs are complete in Figma. The backend now has an initial local knowledge-base and streaming co-pilot API; the frontend and production-ready service are still in development. The feature descriptions and architecture below explain the intended product, not a released product.
 
 ---
 
@@ -100,7 +100,7 @@ The intended answer flow is:
 3. **Calculate:** Use tested Python functions for figures such as repayment estimates instead of relying on the language model's arithmetic.
 4. **Explain:** Produce a plain-English educational response, cite its sources and acknowledge uncertainty when evidence is insufficient.
 
-> The architecture is a **development plan**, not a claim that the end-to-end RAG pipeline has been implemented.
+> The streaming co-pilot API and local RAG components are an initial implementation. The frontend, production deployment, lesson fact review and end-to-end evaluation are still in development.
 
 ## Planned tech stack
 
@@ -146,7 +146,7 @@ These are **design requirements**. They will need to be implemented, tested and 
 - [x] Complete five desktop UI designs and their mobile counterparts in Figma.
 - [ ] **Sprint 1 — Content:** Review the eight original introductory lessons on budgeting, debt and saving.
 - [x] **Sprint 2 — Retrieval:** Build the ingestion pipeline, embeddings and vector search.
-- [ ] **Sprint 3 — AI backend:** Create the FastAPI chat endpoint, streamed answers, citations and user-controlled memory.
+- [x] **Sprint 3 — AI backend:** Create the FastAPI chat endpoint, streamed answers, citations and user-controlled memory.
 - [ ] **Sprint 4 — Application:** Implement the Next.js dashboard, co-pilot, goals and budgeting calculator.
 - [ ] **Sprint 5 — Quality:** Evaluate with 50–100 representative questions, calculation tests and safety checks.
 - [ ] **Later:** Expand into saving, investing, pensions and tax; add onboarding and complete an accessibility audit.
@@ -190,7 +190,7 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
 ```
 
-Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. The API includes health, calculation, local JSON profile/memory, lesson-listing and semantic lesson-search endpoints. Lesson search uses ChromaDB and Ollama embeddings; it does not generate chat answers. All supplied lessons are drafts and need a human fact review before release.
+Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. The API includes health, calculation, local JSON profile/memory and conversation endpoints, lesson listing/search, and the streaming co-pilot. Chat uses Ollama locally and only retrieves approved lessons by default. The supplied lessons are drafts; set `ALLOW_DRAFT=true` for local testing until they have been fact-reviewed.
 
 To create the local lesson index, install and start [Ollama](https://ollama.com/), then run these commands from PowerShell at the repository root:
 
@@ -205,6 +205,35 @@ python -m uvicorn app.main:app --reload
 ```
 
 In `/docs`, expand **GET `/api/search`**, choose **Try it out**, enter a question such as `Why does my credit card balance go down so slowly?`, and execute. The endpoint returns matching lesson chunks, similarity scores and source metadata. **GET `/api/lessons`** and **GET `/api/lessons/{lesson_id}`** list and serve the source lessons used to build the index. Configuration examples are in `backend/.env.example`; copy values into your shell or local environment as needed.
+
+To run the local co-pilot, use a separate PowerShell terminal for Ollama. Close an existing Ollama tray/server process first if you need the context setting to apply:
+
+```powershell
+ollama pull qwen3.5:9b-q4_K_M
+$env:OLLAMA_CONTEXT_LENGTH = "8192"
+ollama serve
+```
+
+In another PowerShell terminal, from the repository root, start the API (set `ALLOW_DRAFT=true` only while testing the unreviewed starter lessons):
+
+```powershell
+Set-Location backend
+$env:OLLAMA_URL = "http://localhost:11434"
+$env:LLM_MODEL = "qwen3.5:9b-q4_K_M"
+$env:LLM_NUM_CTX = "8192"
+$env:ALLOW_DRAFT = "true"
+python -m uvicorn app.main:app --reload
+```
+
+Try the streaming chat endpoint from a third PowerShell terminal:
+
+```powershell
+curl.exe -N -X POST http://127.0.0.1:8000/api/chat/alex `
+  -H "Content-Type: application/json" `
+  -d '{"message":"Why does my credit card balance go down so slowly?"}'
+```
+
+The stream contains `token` events followed by a `done` event with citations, calculations and the conversation ID. Saved conversations are available at `/api/conversations/alex` and `/api/conversations/alex/{conversation_id}`.
 
 The intended development environment is **Python 3.11+**, **Node.js 20+**, with Ollama used for local embeddings. Secrets and `.env` files should never be committed.
 

@@ -1,6 +1,7 @@
 """FastAPI routes for NetValor health, calculations, profiles and memory."""
 
 import os
+import json
 from contextlib import asynccontextmanager
 from datetime import date
 from decimal import Decimal
@@ -9,9 +10,10 @@ from typing import AsyncIterator
 
 from fastapi import Depends, FastAPI, HTTPException, Path as PathParameter, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.chat import ChatService, ConversationNotFoundError, ConversationStore
 from app.finance import (
     compare_extra_payment,
     debt_payoff,
@@ -30,6 +32,7 @@ from app.memory import (
 )
 from app.knowledge.embeddings import EmbeddingError
 from app.knowledge.lessons import load_lessons
+from app.llm import OllamaChatClient
 from app.retrieval import RetrievalError, search as search_lessons
 
 
@@ -138,6 +141,13 @@ class SearchResponse(BaseModel):
     results: list[SearchResult]
 
 
+class ChatRequest(BaseModel):
+    """One new user message, optionally continuing a conversation."""
+
+    message: str = Field(min_length=1)
+    conversation_id: str | None = None
+
+
 _default_origins = "http://localhost:3000"
 _cors_origins = [
     origin.strip()
@@ -148,6 +158,8 @@ _cors_origins = [
 _backend_dir = Path(__file__).resolve().parents[1]
 profile_store = JsonProfileStore(_backend_dir / "data" / "profiles")
 _lessons_dir = _backend_dir / "app" / "knowledge" / "lessons"
+conversation_store = ConversationStore(_backend_dir / "data" / "conversations")
+llm_client = OllamaChatClient()
 
 
 @asynccontextmanager
@@ -236,6 +248,74 @@ def search(
     except (RetrievalError, EmbeddingError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return SearchResponse(results=results)
+
+
+def _sse_event(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, default=str, ensure_ascii=False)}\n\n"
+
+
+@app.post("/api/chat/{user_id}")
+async def chat(user_id: str, request: ChatRequest) -> StreamingResponse:
+    """Stream a source-grounded co-pilot answer as Server-Sent Events."""
+    _profile_or_404(profile_store, user_id)
+    if request.conversation_id:
+        try:
+            conversation = conversation_store.get(user_id, request.conversation_id)
+        except ConversationNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if conversation.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Conversation '{request.conversation_id}' was not found.",
+            )
+    service = ChatService(
+        profile_store=profile_store,
+        conversation_store=conversation_store,
+        retriever=search_lessons,
+        llm=llm_client,
+    )
+
+    async def events():
+        async for event in service.stream(
+            user_id, request.message, request.conversation_id
+        ):
+            yield _sse_event(event["event"], event["data"])
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/api/conversations/{user_id}")
+def list_conversations(user_id: str) -> dict:
+    """List a user's saved conversation summaries."""
+    _profile_or_404(profile_store, user_id)
+    try:
+        return {"conversations": conversation_store.list(user_id)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/conversations/{user_id}/{conversation_id}")
+def get_conversation(user_id: str, conversation_id: str) -> dict:
+    """Return a user's full saved conversation."""
+    _profile_or_404(profile_store, user_id)
+    try:
+        conversation = conversation_store.get(user_id, conversation_id)
+    except ConversationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if conversation.get("user_id") != user_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Conversation '{conversation_id}' was not found.",
+        )
+    return conversation
 
 
 @app.post(

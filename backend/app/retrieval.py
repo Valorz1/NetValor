@@ -35,14 +35,31 @@ class LessonRetriever:
             )
 
     def search(
-        self, question: str, k: int = 4, module: str | None = None
+        self,
+        question: str,
+        k: int = 4,
+        module: str | None = None,
+        review_status: str | list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Return the nearest lesson chunks with cosine similarity and metadata."""
         if not question.strip():
             raise ValueError("question must not be empty.")
         if k < 1:
             raise ValueError("k must be at least 1.")
-        filters = {"module": module} if module else None
+        conditions: list[dict[str, Any]] = []
+        if module:
+            conditions.append({"module": module})
+        if isinstance(review_status, str):
+            conditions.append({"review_status": review_status})
+        elif review_status:
+            conditions.append({"review_status": {"$in": review_status}})
+        filters = (
+            conditions[0]
+            if len(conditions) == 1
+            else {"$and": conditions}
+            if conditions
+            else None
+        )
         matches = self._collection.query(
             query_embeddings=[self._embed_query(question)],
             n_results=k,
@@ -95,7 +112,12 @@ def _default_retriever() -> LessonRetriever:
 
 
 def search(
-    question: str, k: int = 4, module: str | None = None
+    question: str,
+    k: int = 4,
+    module: str | None = None,
+    review_status: str | list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Search the configured NetValor lesson index."""
-    return _default_retriever().search(question, k=k, module=module)
+    return _default_retriever().search(
+        question, k=k, module=module, review_status=review_status
+    )

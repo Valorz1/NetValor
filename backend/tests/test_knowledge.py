@@ -148,12 +148,22 @@ def test_retrieval_uses_fake_embeddings_and_decodes_metadata() -> None:
     collection = FakeCollection()
     retriever = LessonRetriever(collection, lambda _question: [0.1, 0.2], "fake-model")
 
-    results = retriever.search("How do I budget?", k=3, module="Sample module")
+    results = retriever.search(
+        "How do I budget?",
+        k=3,
+        module="Sample module",
+        review_status=["approved", "draft"],
+    )
 
     assert results[0]["score"] == pytest.approx(0.8)
     assert results[0]["metadata"]["source_urls"] == ["https://example.org/"]
     assert collection.query_args["query_embeddings"] == [[0.1, 0.2]]
-    assert collection.query_args["where"] == {"module": "Sample module"}
+    assert collection.query_args["where"] == {
+        "$and": [
+            {"module": "Sample module"},
+            {"review_status": {"$in": ["approved", "draft"]}},
+        ]
+    }
     assert collection.query_args["n_results"] == 3
 
 
