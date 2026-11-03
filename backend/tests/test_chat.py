@@ -226,6 +226,36 @@ def test_llm_unavailable_yields_friendly_error_event(tmp_path) -> None:
     ]
 
 
+def test_ollama_down_endpoint_emits_friendly_sse_error(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(main, "profile_store", _profile_store(tmp_path / "profiles"))
+    monkeypatch.setattr(
+        main,
+        "conversation_store",
+        ConversationStore(tmp_path / "conversations"),
+    )
+    monkeypatch.setattr(
+        main, "llm_client", FakeLLM(error=LLMError("connection refused"))
+    )
+    monkeypatch.setattr(
+        main, "search_lessons", lambda *_args, **_kwargs: [_retrieval_result()]
+    )
+
+    with TestClient(main.app) as client:
+        response = client.post(
+            "/api/chat/alex",
+            json={"message": "Explain credit card interest."},
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert response.text.startswith("event: error\ndata: ")
+    error_data = json.loads(response.text.split("data: ", 1)[1].split("\n", 1)[0])
+    assert error_data["message"] == (
+        "NetValor couldn't connect to its local AI or lesson search. "
+        "Check that Ollama is running and the lesson index is available."
+    )
+
+
 def test_conversation_saved_and_can_be_loaded_from_endpoints(tmp_path, monkeypatch) -> None:
     original_profiles = main.profile_store
     original_conversations = main.conversation_store

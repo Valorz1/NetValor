@@ -178,7 +178,7 @@ NetValor/
 
 ### Getting started
 
-The repository is in early development. The backend API skeleton is available locally; the frontend and AI/RAG features are still in development.
+The backend API, local lesson retrieval and streaming co-pilot are available for local development. The frontend and production deployment are still in development.
 
 To run the backend from the repository root in PowerShell:
 
@@ -210,11 +210,13 @@ To run the local co-pilot, use a separate PowerShell terminal for Ollama. Close 
 
 ```powershell
 ollama pull qwen3.5:9b-q4_K_M
+ollama pull gemma4:12b
+ollama pull ministral-3:8b
 $env:OLLAMA_CONTEXT_LENGTH = "8192"
 ollama serve
 ```
 
-In another PowerShell terminal, from the repository root, start the API (set `ALLOW_DRAFT=true` only while testing the unreviewed starter lessons):
+In another PowerShell terminal, from the repository root, start the API (set `ALLOW_DRAFT=true` only while testing the unreviewed starter lessons). The default is Qwen; set `LLM_MODEL` to `gemma4:12b` or `ministral-3:8b` to use Gemma or Ministral instead:
 
 ```powershell
 Set-Location backend
@@ -222,6 +224,10 @@ $env:OLLAMA_URL = "http://localhost:11434"
 $env:LLM_MODEL = "qwen3.5:9b-q4_K_M"
 $env:LLM_NUM_CTX = "8192"
 $env:ALLOW_DRAFT = "true"
+# For Gemma 4 12B, use this instead:
+# $env:LLM_MODEL = "gemma4:12b"
+# For Ministral 3 8B, use this instead:
+# $env:LLM_MODEL = "ministral-3:8b"
 python -m uvicorn app.main:app --reload
 ```
 
