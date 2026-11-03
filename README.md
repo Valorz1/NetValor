@@ -4,9 +4,9 @@
 
 ### Understand your money. Learn at your pace. Make informed decisions.
 
-**A UK-focused financial-literacy platform designed to make money management easier to understand.**
+**NetValor is a UK-focused financial-literacy web app in early development.**
 
-NetValor is an early-stage web app concept combining practical financial education, personal goals and a source-grounded AI learning companion. The aim is to help people understand *why* something matters for their finances—not just tell them what to do.
+It pairs short lessons and personal goals with an AI learning companion that answers from cited UK sources. Its explanations focus on *why* something matters for your finances, so you can weigh your options yourself.
 
 [![Explore interactive prototype](https://img.shields.io/badge/Explore_Interactive_Prototype-Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white)](https://www.figma.com/proto/YuR50qCdlhFfWwy9fbVoRb/NetValor-UI-UX?node-id=2-1194&p=f&scaling=min-zoom&content-scaling=fixed&page-id=0%3A1)
 [![View design file](https://img.shields.io/badge/View_Design_File-Figma-0C8CE9?style=for-the-badge&logo=figma&logoColor=white)](https://www.figma.com/design/YuR50qCdlhFfWwy9fbVoRb/Untitled)
@@ -18,7 +18,7 @@ NetValor is an early-stage web app concept combining practical financial educati
 </div>
 
 > [!IMPORTANT]
-> **Project status — October 2026:** The desktop and mobile UI designs are complete in Figma. The backend now has an initial local knowledge-base and streaming co-pilot API; the frontend and production-ready service are still in development. The feature descriptions and architecture below explain the intended product, not a released product.
+> **Project status — October 2026:** The desktop and mobile UI designs are complete in Figma. A local backend can now search the draft lessons and stream co-pilot answers based on them. The frontend and a production-ready service are still in development, so the features and architecture below describe the intended product, not a released one.
 
 ---
 
@@ -30,7 +30,7 @@ NetValor is an early-stage web app concept combining practical financial educati
 | **The idea** | A personal financial-literacy teacher that explains concepts in plain English and adapts lessons to the user's goals. |
 | **Who it's for** | People in the UK who want to build confidence with budgeting, debt, savings and other money topics. |
 | **What makes it different** | UK-focused learning content, transparent sources, user-controlled contextual memory and calculations handled by code. |
-| **Current milestone** | Interactive UI/UX prototype for desktop and mobile. |
+| **Current stage** | UI designs complete for desktop and mobile; initial local backend with lesson search and a streaming co-pilot API. |
 
 ## The experience
 
@@ -38,7 +38,7 @@ NetValor is being designed around five connected areas:
 
 | Area | Planned experience |
 | :--- | :--- |
-| **Overview** | A straightforward snapshot of income, spending, debt, emergency savings and a possible next learning step. |
+| **Overview** | A snapshot of income, spending, debt, emergency savings and a possible next learning step. |
 | **My co-pilot** | Ask financial questions in everyday language and receive educational answers supported by source references. |
 | **My money** | Understand money coming in, spending by category and what remains after commitments. |
 | **Learning path** | Follow short lessons that develop from cash flow and budgeting to debt management and saving. |
@@ -48,7 +48,7 @@ The long-term aim is to connect these parts into one learning experience: unders
 
 ## Explore the design
 
-**The interactive Figma prototype is the best place to see the project right now.** It contains the completed design work while development continues.
+The Figma prototype holds the finished design work and is currently the best way to see how the app is meant to look and work.
 
 ### [→ Open the interactive NetValor prototype](https://www.figma.com/proto/YuR50qCdlhFfWwy9fbVoRb/NetValor-UI-UX?node-id=2-1194&p=f&scaling=min-zoom&content-scaling=fixed&page-id=0%3A1)
 
@@ -75,7 +75,7 @@ Accessibility is part of the design process, including attention to readable con
 
 ## How NetValor is intended to work
 
-NetValor's planned AI layer uses **Retrieval-Augmented Generation (RAG)** so explanations can be built around selected financial-education material rather than unsupported model output.
+NetValor uses **Retrieval-Augmented Generation (RAG)**. Before the language model answers, the backend retrieves passages from approved lesson material, so explanations are built from those sources rather than from the model's general knowledge alone.
 
 ```mermaid
 flowchart TD
@@ -100,9 +100,11 @@ The intended answer flow is:
 3. **Calculate:** Use tested Python functions for figures such as repayment estimates instead of relying on the language model's arithmetic.
 4. **Explain:** Produce a plain-English educational response, cite its sources and acknowledge uncertainty when evidence is insufficient.
 
-> The streaming co-pilot API and local RAG components are an initial implementation. The frontend, production deployment, lesson fact review and end-to-end evaluation are still in development.
+> Retrieval and the streaming co-pilot API exist as an initial local implementation. The Next.js frontend, production deployment, lesson fact review and end-to-end evaluation are still to come.
 
-## Planned tech stack
+## Tech stack
+
+FastAPI, ChromaDB and Ollama are already used by the local backend, which stores profiles and memory as local JSON for now. The other layers are planned.
 
 | Layer | Technology | Intended role |
 | :--- | :--- | :--- |
@@ -117,7 +119,7 @@ The intended answer flow is:
 
 ## UK knowledge base
 
-The goal is to build original, beginner-friendly lessons using trustworthy UK references, including:
+The lessons will be original, beginner-friendly material written with reference to established UK sources, including:
 
 - [MoneyHelper](https://www.moneyhelper.org.uk/) — money guidance and educational resources.
 - [Financial Conduct Authority](https://www.fca.org.uk/) — financial regulation and consumer information.
@@ -138,7 +140,7 @@ Personal-finance education comes with real risks. These are the safeguards NetVa
 - **Sensitive situations:** Direct users experiencing urgent debt problems to appropriate free support rather than pretending a chatbot can resolve everything.
 - **Privacy by design:** Avoid collecting bank passwords, login credentials or full account numbers.
 
-These are **design requirements**. They will need to be implemented, tested and reviewed before release.
+These are **design requirements**. Some, such as citations and retrieving only approved lessons by default, are in the initial backend. All of them need testing and review before release.
 
 ## Roadmap
 
@@ -176,11 +178,11 @@ NetValor/
 └── LICENSE
 ```
 
-### Getting started
+## Getting started
 
-The backend API, local lesson retrieval and streaming co-pilot are available for local development. The frontend and production deployment are still in development.
+Only the backend can be run at the moment. You need **Python 3.11+** and [Ollama](https://ollama.com/), which provides both the embeddings and the chat model locally. **Node.js 20+** will be needed once the frontend is added. The commands below are for PowerShell and start from the repository root. Configuration examples are in `backend/.env.example`; copy values into your shell or local environment as needed. Never commit secrets or `.env` files.
 
-To run the backend from the repository root in PowerShell:
+### 1. Install and start the API
 
 ```powershell
 cd backend
@@ -190,9 +192,13 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
 ```
 
-Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. The API includes health, calculation, local JSON profile/memory and conversation endpoints, lesson listing/search, and the streaming co-pilot. Chat uses Ollama locally and only retrieves approved lessons by default. The supplied lessons are drafts; set `ALLOW_DRAFT=true` for local testing until they have been fact-reviewed.
+Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. It includes health, calculation, local JSON profile/memory and conversation endpoints, lesson listing and search, and the streaming co-pilot. Lesson search and chat also depend on Ollama and the lesson index, set up in the next steps.
 
-To create the local lesson index, install and start [Ollama](https://ollama.com/), then run these commands from PowerShell at the repository root:
+Chat retrieves only approved lessons by default. The supplied lessons are unreviewed drafts, so set `ALLOW_DRAFT=true` for local testing until they have been fact-reviewed.
+
+### 2. Build the lesson index
+
+Install and start Ollama, then run:
 
 ```powershell
 ollama pull embeddinggemma-2:270m
@@ -204,9 +210,11 @@ python -m app.knowledge.scripts.ingest
 python -m uvicorn app.main:app --reload
 ```
 
-In `/docs`, expand **GET `/api/search`**, choose **Try it out**, enter a question such as `Why does my credit card balance go down so slowly?`, and execute. The endpoint returns matching lesson chunks, similarity scores and source metadata. **GET `/api/lessons`** and **GET `/api/lessons/{lesson_id}`** list and serve the source lessons used to build the index. Configuration examples are in `backend/.env.example`; copy values into your shell or local environment as needed.
+To check the index, open `/docs`, expand **GET `/api/search`**, choose **Try it out**, enter a question such as `Why does my credit card balance go down so slowly?`, and execute. The endpoint returns matching lesson chunks with their similarity scores and source metadata. **GET `/api/lessons`** and **GET `/api/lessons/{lesson_id}`** list and serve the source lessons used to build the index.
 
-To run the local co-pilot, use a separate PowerShell terminal for Ollama. Close an existing Ollama tray/server process first if you need the context setting to apply:
+### 3. Run the co-pilot
+
+Start Ollama in its own PowerShell terminal. If an Ollama tray app or server is already running, close it first so the context-length setting takes effect:
 
 ```powershell
 ollama pull qwen3.5:9b-q4_K_M
@@ -216,7 +224,7 @@ $env:OLLAMA_CONTEXT_LENGTH = "8192"
 ollama serve
 ```
 
-In another PowerShell terminal, from the repository root, start the API (set `ALLOW_DRAFT=true` only while testing the unreviewed starter lessons). The default is Qwen; set `LLM_MODEL` to `gemma4:12b` or `ministral-3:8b` to use Gemma or Ministral instead:
+In a second terminal, start the API from the repository root. Set `ALLOW_DRAFT=true` only while testing the unreviewed starter lessons. Qwen is the default; set `LLM_MODEL` to `gemma4:12b` or `ministral-3:8b` to use Gemma or Ministral instead:
 
 ```powershell
 Set-Location backend
@@ -231,7 +239,7 @@ $env:ALLOW_DRAFT = "true"
 python -m uvicorn app.main:app --reload
 ```
 
-Try the streaming chat endpoint from a third PowerShell terminal:
+From a third terminal, send a test question to the streaming chat endpoint:
 
 ```powershell
 curl.exe -N -X POST http://127.0.0.1:8000/api/chat/alex `
@@ -239,15 +247,13 @@ curl.exe -N -X POST http://127.0.0.1:8000/api/chat/alex `
   -d '{"message":"Why does my credit card balance go down so slowly?"}'
 ```
 
-The stream contains `token` events followed by a `done` event with citations, calculations and the conversation ID. Saved conversations are available at `/api/conversations/alex` and `/api/conversations/alex/{conversation_id}`.
-
-The intended development environment is **Python 3.11+**, **Node.js 20+**, with Ollama used for local embeddings. Secrets and `.env` files should never be committed.
+The stream contains `token` events followed by a `done` event that carries the citations, any calculations and the conversation ID. Saved conversations are available at `/api/conversations/alex` and `/api/conversations/alex/{conversation_id}`.
 
 ## Why I'm building this
 
 I started NetValor because learning about personal finance should not depend on knowing the right jargon or already understanding the system. I want to explore how software and carefully grounded AI can make financial education clearer, more personal and more useful—without turning it into product sales or pretending a chatbot is a financial adviser.
 
-The project also gives me the opportunity to build and evaluate a full-stack RAG application: from interface design and content preparation to retrieval, APIs, testing and responsible AI behaviour.
+The project is also a chance to build and evaluate a full-stack RAG application end to end, from interface design and content preparation through retrieval, APIs, testing and responsible AI behaviour.
 
 ## Licence
 
