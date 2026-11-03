@@ -391,7 +391,7 @@ def test_search_endpoint_returns_chunks_and_metadata(make_client: ClientFactory)
 
 
 @pytest.mark.parametrize("params", [{"q": ""}, {"q": "   "}, {"q": "x" * 301}, {"q": "a", "k": 11}])
-def test_search_endpoint_validates_input(client: TestClient, params: dict[str, object]) -> None:
+def test_search_endpoint_validates_input(client: TestClient, params: dict[str, str | int]) -> None:
     assert client.get("/api/search", params=params).status_code == 422
 
 
