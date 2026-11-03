@@ -1,0 +1,73 @@
+[project]
+name = "netvalor-backend"
+version = "0.2.0"
+description = "Educational UK financial-literacy API with a source-grounded co-pilot."
+requires-python = ">=3.12"
+license = "MIT"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = [
+    "error::pytest.PytestUnraisableExceptionWarning",
+    # Starlette's TestClient warns about httpx on recent releases; harmless here.
+    "ignore:Using `httpx` with `starlette.testclient`:UserWarning",
+]
+
+[tool.coverage.run]
+source = ["app", "evals"]
+branch = true
+omit = ["app/knowledge/scripts/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if __name__ == .__main__.:", "raise AssertionError"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", "data"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",  # pycodestyle, pyflakes
+    "I",            # import order
+    "B",            # bugbear
+    "UP",           # pyupgrade
+    "S",            # bandit security checks
+    "SIM", "C4", "RUF",
+    "ASYNC",        # blocking calls in async code
+    "PT",           # pytest style
+]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # "£", "‹" and curly quotes are intentional
+    "S608",  # SQL built only from fixed table names in tests; app queries are parameterised
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S311", "PT011", "B017"]
+"evals/**" = ["S101", "S311"]
+"app/finance.py" = ["S101"]  # internal invariants after explicit checks
+"app/calc_intent.py" = ["S101"]
+"app/api/errors.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+exclude = ["^\\.venv/", "^data/"]
+
+[[tool.mypy.overrides]]
+module = ["chromadb", "chromadb.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "evals.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+warn_return_any = false
+disable_error_code = ["operator"]  # Optional results are asserted at runtime

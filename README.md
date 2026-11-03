@@ -104,7 +104,7 @@ The intended answer flow is:
 
 ## Tech stack
 
-FastAPI, ChromaDB and Ollama are already used by the local backend, which stores profiles and memory as local JSON for now. The other layers are planned.
+FastAPI, ChromaDB, Ollama and SQLite are already used by the local backend. It stores accounts, profiles, memory and conversations in SQLite, and it can encrypt personal data at rest. The other layers are planned.
 
 | Layer | Technology | Intended role |
 | :--- | :--- | :--- |
@@ -153,23 +153,28 @@ These are **design requirements**. Some, such as citations and retrieving only a
 - [ ] **Sprint 5 — Quality:** Evaluate with 50–100 representative questions, calculation tests and safety checks.
 - [ ] **Later:** Expand into saving, investing, pensions and tax; add onboarding and complete an accessibility audit.
 
-## Project layout (planned)
+## Project layout
 
 ```text
 NetValor/
-├── backend/
-│   └── app/
-│       ├── main.py                 # API entry point
-│       ├── chat.py                 # Retrieval and responses
-│       ├── memory.py               # User-controlled context
-│       ├── finance.py              # Deterministic calculations
-│       ├── retrieval.py            # Lesson vector search
-│       └── knowledge/
-│           ├── lessons/            # Original UK learning materials (draft)
-│           ├── embeddings.py       # Ollama embedding client
-│           └── scripts/
-│               ├── ingest.py       # Content indexing
-│               └── tests/
+├── backend/                        # See backend/README.md for full details
+│   ├── app/
+│   │   ├── main.py                 # App factory and wiring
+│   │   ├── config.py               # Typed settings with production safety checks
+│   │   ├── api/                    # Routes, auth/ownership, error handling
+│   │   ├── chat.py                 # Co-pilot pipeline
+│   │   ├── calc_intent.py          # Interprets calculation requests; asks when unsure
+│   │   ├── finance.py              # Deterministic Decimal calculations
+│   │   ├── grounding.py            # Citation, figure and safety checks
+│   │   ├── retrieval.py            # Async lesson vector search
+│   │   ├── users.py, memory.py, conversations.py   # SQLite storage
+│   │   ├── migrations/             # Numbered SQL schema migrations
+│   │   └── knowledge/
+│   │       ├── lessons/            # Original UK learning materials (draft)
+│   │       └── scripts/ingest.py   # Content indexing
+│   ├── evals/                      # Offline and live AI evaluation suite
+│   └── tests/                      # Offline pytest suite
+├── .github/workflows/backend.yml   # Lint, type-check, test and evaluate
 ├── frontend/
 │   ├── app/                        # Next.js routes
 │   ├── components/                 # Reusable UI components
@@ -180,21 +185,23 @@ NetValor/
 
 ## Getting started
 
-Only the backend can be run at the moment. You need **Python 3.11+** and [Ollama](https://ollama.com/), which provides both the embeddings and the chat model locally. **Node.js 20+** will be needed once the frontend is added. The commands below are for PowerShell and start from the repository root. Configuration examples are in `backend/.env.example`; copy values into your shell or local environment as needed. Never commit secrets or `.env` files.
+Only the backend can be run at the moment. You need **Python 3.12+** and [Ollama](https://ollama.com/), which provides both the embeddings and the chat model locally. **Node.js 20+** will be needed once the frontend is added. The commands below are for PowerShell and start from the repository root. [`backend/README.md`](backend/README.md) covers configuration, the security model, calculation assumptions, evaluation and data migration in full. Never commit secrets or `.env` files.
 
-### 1. Install and start the API
+### 1. Install, test and start the API
 
 ```powershell
 cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+Copy-Item .env.example .env
+python -m pytest
 python -m uvicorn app.main:app --reload
 ```
 
-Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. It includes health, calculation, local JSON profile/memory and conversation endpoints, lesson listing and search, and the streaming co-pilot. Lesson search and chat also depend on Ollama and the lesson index, set up in the next steps.
+Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try the API. Profile, memory, chat and conversation endpoints require a bearer token from `POST /api/auth/login`, and each user can only access their own data. For a local demo account, set `SEED_DEMO_USER=true` and a `DEMO_USER_PASSWORD` of at least 12 characters in `backend/.env`. You can also register your own account with `POST /api/auth/register`. Lesson search and chat depend on Ollama and the lesson index, which you set up in the next steps.
 
-Chat retrieves only approved lessons by default. The supplied lessons are unreviewed drafts, so set `ALLOW_DRAFT=true` for local testing until they have been fact-reviewed.
+Chat, search and the lesson list use only approved lessons by default. The supplied lessons are unreviewed drafts, so set `ALLOW_DRAFT=true` in `backend/.env` for local testing until they have been fact-reviewed. Answers based on drafts are labelled as such.
 
 ### 2. Build the lesson index
 
@@ -239,15 +246,21 @@ $env:ALLOW_DRAFT = "true"
 python -m uvicorn app.main:app --reload
 ```
 
-From a third terminal, send a test question to the streaming chat endpoint:
+From a third terminal, log in and send a test question to the streaming chat endpoint:
 
 ```powershell
+$login = Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/auth/login `
+  -ContentType "application/json" `
+  -Body '{"user_id":"alex","password":"<your DEMO_USER_PASSWORD>"}'
 curl.exe -N -X POST http://127.0.0.1:8000/api/chat/alex `
+  -H "Authorization: Bearer $($login.access_token)" `
   -H "Content-Type: application/json" `
-  -d '{"message":"Why does my credit card balance go down so slowly?"}'
+  -d '{\"message\":\"Why does my credit card balance go down so slowly?\"}'
 ```
 
-The stream contains `token` events followed by a `done` event that carries the citations, any calculations and the conversation ID. Saved conversations are available at `/api/conversations/alex` and `/api/conversations/alex/{conversation_id}`.
+The stream contains `token` events, then either a `done` event or an `error` event with a `code`. The `done` event carries the citations, verified calculations, grounding checks, notices and the conversation ID. If a calculation request is ambiguous, NetValor asks a clarifying question instead of guessing. Saved conversations are available at `/api/conversations/alex` and `/api/conversations/alex/{conversation_id}` with the same token.
+
+If you used an earlier version that stored profiles as JSON, import them with `python -m app.cli import-json`. Your original files are left unchanged. See `backend/README.md` for details.
 
 ## Why I'm building this
 

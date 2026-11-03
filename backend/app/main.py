@@ -1,471 +1,221 @@
-"""FastAPI routes for NetValor health, calculations, profiles and memory."""
+"""NetValor API application factory.
 
-import os
-import json
+`create_app()` wires configuration, storage, Ollama clients and routers.
+Tests pass their own `Settings` and fakes for the retriever and language
+model, so the standard suite never needs a running Ollama instance.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import date
-from decimal import Decimal
-from pathlib import Path
-from typing import AsyncIterator
+from datetime import timedelta
 
-from fastapi import Depends, FastAPI, HTTPException, Path as PathParameter, Query, Request
+import httpx
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from app.chat import ChatService, ConversationNotFoundError, ConversationStore
-from app.finance import (
-    compare_extra_payment,
-    debt_payoff,
-    emergency_fund_status,
-    payoff_date,
-)
-from app.memory import (
-    JsonProfileStore,
-    MemoryNote,
-    MemoryResponse,
-    NoteCreate,
-    NoteDeletedResponse,
-    NoteUpdate,
-    ProfileNotFoundError,
-    UserProfile,
-)
-from app.knowledge.embeddings import EmbeddingError
+from app.api import auth, calc, chat, lessons, profiles
+from app.api.deps import Services, ServicesDep
+from app.api.errors import RequestGuardMiddleware, install_error_handlers
+from app.chat import ChatLLM
+from app.config import BACKEND_DIR, Settings, get_settings
+from app.conversations import ConversationStore
+from app.db import Database
+from app.knowledge.embeddings import OllamaEmbeddings
 from app.knowledge.lessons import load_lessons
 from app.llm import OllamaChatClient
-from app.retrieval import RetrievalError, search as search_lessons
+from app.memory import ProfileStore, demo_profile
+from app.ratelimit import ConcurrencyGate, RateLimiter
+from app.retrieval import ChromaRetriever, Retriever
+from app.security import build_cipher
+from app.users import UserStore
+
+logger = logging.getLogger("app")
+LESSONS_DIR = BACKEND_DIR / "app" / "knowledge" / "lessons"
 
 
 class HealthResponse(BaseModel):
-    """API health status."""
-
     status: str
 
 
-class ErrorResponse(BaseModel):
-    """Readable API error detail."""
-
-    detail: str
-
-
-class DebtPayoffRequest(BaseModel):
-    """Inputs for estimating a debt payoff."""
-
-    balance: Decimal = Field(ge=0)
-    apr: Decimal = Field(ge=0, le=1)
-    monthly_payment: Decimal = Field(ge=0)
+class ReadinessResponse(BaseModel):
+    status: str
+    database: bool
+    lessons: int
 
 
-class DebtPayoffResponse(BaseModel):
-    """Debt payoff estimate returned by the calculation engine."""
-
-    months: int | None
-    total_interest: Decimal | None
-    total_paid: Decimal | None
-    final_payment: Decimal | None
-    pays_off: bool
+def _configure_logging(level: str) -> None:
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    logging.getLogger("app").setLevel(level)
 
 
-class CompareExtraPaymentRequest(DebtPayoffRequest):
-    """Inputs for comparing a regular and increased monthly payment."""
-
-    extra: Decimal = Field(ge=0)
-
-
-class CompareExtraPaymentResponse(BaseModel):
-    """Payment comparison and estimated payoff months."""
-
-    baseline: DebtPayoffResponse
-    with_extra: DebtPayoffResponse
-    months_saved: int | None
-    interest_saved: Decimal | None
-    baseline_payoff_date: date | None
-    with_extra_payoff_date: date | None
-
-
-class EmergencyFundRequest(BaseModel):
-    """Inputs for checking emergency-fund coverage."""
-
-    saved: Decimal = Field(ge=0)
-    monthly_essentials: Decimal = Field(gt=0)
-    target_months: int = Field(default=3, gt=0)
-
-
-class EmergencyFundResponse(BaseModel):
-    """Emergency-fund target and progress."""
-
-    months_covered: Decimal
-    target_amount: Decimal
-    amount_left: Decimal
-    percent_complete: Decimal
-
-
-class LessonSummary(BaseModel):
-    """Public index fields for one learning-path lesson."""
-
-    id: str
-    title: str
-    module: str
-    order: int
-
-
-class LessonDetail(LessonSummary):
-    """A lesson and its Markdown content."""
-
-    content: str
-
-
-class SearchMetadata(BaseModel):
-    """Lesson metadata attached to a retrieved chunk."""
-
-    lesson_id: str
-    title: str
-    module: str
-    heading: str
-    source_urls: list[str]
-    review_status: str
-    embedding_model: str
-
-
-class SearchResult(BaseModel):
-    """One retrieved lesson chunk and its cosine similarity."""
-
-    chunk: str
-    score: float
-    metadata: SearchMetadata
-
-
-class SearchResponse(BaseModel):
-    """Search results ordered by relevance."""
-
-    results: list[SearchResult]
-
-
-class ChatRequest(BaseModel):
-    """One new user message, optionally continuing a conversation."""
-
-    message: str = Field(min_length=1)
-    conversation_id: str | None = None
-
-
-_default_origins = "http://localhost:3000"
-_cors_origins = [
-    origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", _default_origins).split(",")
-    if origin.strip()
-]
-
-_backend_dir = Path(__file__).resolve().parents[1]
-profile_store = JsonProfileStore(_backend_dir / "data" / "profiles")
-_lessons_dir = _backend_dir / "app" / "knowledge" / "lessons"
-conversation_store = ConversationStore(_backend_dir / "data" / "conversations")
-llm_client = OllamaChatClient()
-
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Seed the local demo profile when the API starts."""
-    profile_store.seed_demo_user()
-    yield
-
-
-app = FastAPI(title="NetValor API", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins or [_default_origins],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-def get_profile_store() -> JsonProfileStore:
-    """Provide the profile storage implementation to API routes."""
-    return profile_store
-
-
-@app.exception_handler(ValueError)
-async def value_error_handler(_request: Request, exc: ValueError) -> JSONResponse:
-    return JSONResponse(status_code=422, content={"detail": str(exc)})
-
-
-def _profile_or_404(store: JsonProfileStore, user_id: str) -> UserProfile:
-    try:
-        return store.get_profile(user_id)
-    except ProfileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.get("/api/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    """Return a basic health status."""
-    return HealthResponse(status="ok")
-
-
-@app.get("/api/lessons", response_model=list[LessonSummary])
-def list_lessons() -> list[LessonSummary]:
-    """List the available learning-path lessons in their intended order."""
-    lessons = load_lessons(_lessons_dir)
-    return [
-        LessonSummary(
-            id=lesson.metadata["id"],
-            title=lesson.metadata["title"],
-            module=lesson.metadata["module"],
-            order=lesson.metadata["order"],
+def _seed_demo_user(services: Services) -> None:
+    """Create the local 'alex' demo account when explicitly enabled."""
+    settings = services.settings
+    if not settings.seed_demo_user:
+        return
+    password = settings.demo_user_password.get_secret_value() if settings.demo_user_password else ""
+    if len(password) < 12:
+        logger.warning(
+            "SEED_DEMO_USER is enabled but DEMO_USER_PASSWORD is not set to at least "
+            "12 characters; skipping the demo account."
         )
-        for lesson in lessons
-    ]
+        return
+    if services.users.exists("alex"):
+        return
+    services.users.create_user("alex", password)
+    profile, notes = demo_profile()
+    services.profiles.put_profile("alex", profile)
+    for note in notes:
+        services.profiles.add_note("alex", note)
+    logger.info("Created the local 'alex' demo account.")
 
 
-@app.get("/api/lessons/{lesson_id}", response_model=LessonDetail)
-def get_lesson(lesson_id: str) -> LessonDetail:
-    """Return one full lesson, excluding its authoring front matter."""
-    for lesson in load_lessons(_lessons_dir):
-        if lesson.metadata["id"] == lesson_id:
-            return LessonDetail(
-                id=lesson.metadata["id"],
-                title=lesson.metadata["title"],
-                module=lesson.metadata["module"],
-                order=lesson.metadata["order"],
-                content=lesson.content,
+def build_services(
+    settings: Settings,
+    *,
+    llm: ChatLLM | None = None,
+    retriever: Retriever | None = None,
+    http_client: httpx.AsyncClient | None = None,
+) -> Services:
+    """Construct storage, clients and limiters from configuration."""
+    database = Database(settings.resolve(settings.database_path))
+    database.initialise()
+    cipher = build_cipher(
+        settings.data_encryption_keys.get_secret_value() if settings.data_encryption_keys else None
+    )
+    if retriever is None:
+        embeddings = OllamaEmbeddings(
+            model=settings.embedding_model,
+            base_url=settings.ollama_url,
+            timeout=settings.embedding_timeout_seconds,
+            http_client=http_client,
+        )
+        retriever = ChromaRetriever(
+            settings.resolve(settings.chroma_dir), embeddings.aembed_query, embeddings.model
+        )
+    if llm is None:
+        llm = OllamaChatClient(
+            base_url=settings.ollama_url,
+            model=settings.llm_model,
+            temperature=settings.llm_temperature,
+            num_ctx=settings.llm_num_ctx,
+            num_predict=settings.llm_num_predict,
+            http_client=http_client,
+        )
+    return Services(
+        settings=settings,
+        database=database,
+        users=UserStore(database, timedelta(hours=settings.session_ttl_hours)),
+        profiles=ProfileStore(database, cipher),
+        conversations=ConversationStore(database, cipher),
+        retriever=retriever,
+        llm=llm,
+        lessons=load_lessons(LESSONS_DIR),
+        auth_limiter=RateLimiter(settings.auth_rate_limit_per_minute),
+        chat_limiter=RateLimiter(settings.chat_rate_limit_per_minute),
+        search_limiter=RateLimiter(settings.search_rate_limit_per_minute),
+        chat_gate=ConcurrencyGate(
+            settings.max_concurrent_chats, settings.max_concurrent_chats_per_user
+        ),
+        http_client=http_client,
+    )
+
+
+def create_app(
+    settings: Settings | None = None,
+    *,
+    llm: ChatLLM | None = None,
+    retriever: Retriever | None = None,
+) -> FastAPI:
+    """Build the FastAPI application."""
+    settings = settings or get_settings()
+    _configure_logging(settings.log_level)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        http_client = None
+        if llm is None or retriever is None:
+            http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(
+                    settings.llm_read_timeout_seconds,
+                    connect=settings.llm_connect_timeout_seconds,
+                ),
+                limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
             )
-    raise HTTPException(status_code=404, detail=f"Lesson '{lesson_id}' was not found.")
-
-
-@app.get("/api/search", response_model=SearchResponse)
-def search(
-    q: str = Query(min_length=1),
-    k: int = Query(default=4, ge=1, le=20),
-    module: str | None = None,
-) -> SearchResponse:
-    """Search indexed lesson passages without generating an answer."""
-    try:
-        results = search_lessons(q, k=k, module=module)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (RetrievalError, EmbeddingError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return SearchResponse(results=results)
-
-
-def _sse_event(event: str, data: dict) -> str:
-    return f"event: {event}\ndata: {json.dumps(data, default=str, ensure_ascii=False)}\n\n"
-
-
-@app.post("/api/chat/{user_id}")
-async def chat(user_id: str, request: ChatRequest) -> StreamingResponse:
-    """Stream a source-grounded co-pilot answer as Server-Sent Events."""
-    _profile_or_404(profile_store, user_id)
-    if request.conversation_id:
+        services = build_services(settings, llm=llm, retriever=retriever, http_client=http_client)
+        _seed_demo_user(services)
+        app.state.services = services
+        logger.info(
+            "NetValor API started (environment=%s, drafts=%s, docs=%s).",
+            settings.environment,
+            settings.allow_draft,
+            settings.show_docs,
+        )
         try:
-            conversation = conversation_store.get(user_id, request.conversation_id)
-        except ConversationNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        if conversation.get("user_id") != user_id:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Conversation '{request.conversation_id}' was not found.",
-            )
-    service = ChatService(
-        profile_store=profile_store,
-        conversation_store=conversation_store,
-        retriever=search_lessons,
-        llm=llm_client,
+            yield
+        finally:
+            if http_client is not None:
+                await http_client.aclose()
+
+    app = FastAPI(
+        title="NetValor API",
+        description=(
+            "Educational UK financial-literacy API. Calculations are estimates for "
+            "learning purposes, not financial advice."
+        ),
+        version="0.2.0",
+        lifespan=lifespan,
+        docs_url="/docs" if settings.show_docs else None,
+        redoc_url=None,
+        openapi_url="/openapi.json" if settings.show_docs else None,
     )
-
-    async def events():
-        async for event in service.stream(
-            user_id, request.message, request.conversation_id
-        ):
-            yield _sse_event(event["event"], event["data"])
-
-    return StreamingResponse(
-        events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    install_error_handlers(app)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=False,  # Bearer tokens, not cookies.
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["X-Request-ID", "Retry-After"],
     )
+    app.add_middleware(RequestGuardMiddleware, max_body_bytes=settings.max_request_bytes)
 
+    @app.get("/api/health", response_model=HealthResponse, tags=["health"])
+    def health() -> HealthResponse:
+        """Liveness: the process is running."""
+        return HealthResponse(status="ok")
 
-@app.get("/api/conversations/{user_id}")
-def list_conversations(user_id: str) -> dict:
-    """List a user's saved conversation summaries."""
-    _profile_or_404(profile_store, user_id)
-    try:
-        return {"conversations": conversation_store.list(user_id)}
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.get("/api/conversations/{user_id}/{conversation_id}")
-def get_conversation(user_id: str, conversation_id: str) -> dict:
-    """Return a user's full saved conversation."""
-    _profile_or_404(profile_store, user_id)
-    try:
-        conversation = conversation_store.get(user_id, conversation_id)
-    except ConversationNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    if conversation.get("user_id") != user_id:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Conversation '{conversation_id}' was not found.",
+    @app.get("/api/health/ready", response_model=ReadinessResponse, tags=["health"])
+    def ready(services: ServicesDep) -> ReadinessResponse:
+        """Readiness: storage is reachable and lessons are loaded."""
+        database_ok = services.database.ping()
+        return ReadinessResponse(
+            status="ok" if database_ok else "degraded",
+            database=database_ok,
+            lessons=len(services.lessons),
         )
-    return conversation
+
+    for router in (auth.router, profiles.router, chat.router, lessons.router, calc.router):
+        app.include_router(router)
+    return app
 
 
-@app.post(
-    "/api/calc/debt-payoff",
-    response_model=DebtPayoffResponse,
-    responses={422: {"model": ErrorResponse}},
-)
-def calculate_debt_payoff(request: DebtPayoffRequest) -> DebtPayoffResponse:
-    """Calculate monthly debt payoff totals using the deterministic engine."""
-    result = debt_payoff(request.balance, request.apr, request.monthly_payment)
-    return DebtPayoffResponse.model_validate(result, from_attributes=True)
+_default_app: FastAPI | None = None
 
 
-@app.post(
-    "/api/calc/compare-extra",
-    response_model=CompareExtraPaymentResponse,
-    responses={422: {"model": ErrorResponse}},
-)
-def calculate_extra_payment(
-    request: CompareExtraPaymentRequest,
-) -> CompareExtraPaymentResponse:
-    """Compare debt payoff with an extra monthly payment."""
-    result = compare_extra_payment(
-        request.balance, request.apr, request.monthly_payment, request.extra
-    )
-    today = date.today()
-    baseline_date = (
-        payoff_date(today, result.baseline.months)
-        if result.baseline.pays_off and result.baseline.months is not None
-        else None
-    )
-    extra_date = (
-        payoff_date(today, result.with_extra.months)
-        if result.with_extra.pays_off and result.with_extra.months is not None
-        else None
-    )
-    return CompareExtraPaymentResponse(
-        baseline=DebtPayoffResponse.model_validate(result.baseline, from_attributes=True),
-        with_extra=DebtPayoffResponse.model_validate(result.with_extra, from_attributes=True),
-        months_saved=result.months_saved,
-        interest_saved=result.interest_saved,
-        baseline_payoff_date=baseline_date,
-        with_extra_payoff_date=extra_date,
-    )
-
-
-@app.post(
-    "/api/calc/emergency-fund",
-    response_model=EmergencyFundResponse,
-    responses={422: {"model": ErrorResponse}},
-)
-def calculate_emergency_fund(request: EmergencyFundRequest) -> EmergencyFundResponse:
-    """Calculate emergency-fund coverage and progress toward the target."""
-    result = emergency_fund_status(
-        request.saved, request.monthly_essentials, request.target_months
-    )
-    return EmergencyFundResponse.model_validate(result, from_attributes=True)
-
-
-@app.get("/api/profile/{user_id}", response_model=UserProfile)
-def get_profile(
-    user_id: str = PathParameter(min_length=1),
-    store: JsonProfileStore = Depends(get_profile_store),
-) -> UserProfile:
-    """Read a user's saved financial profile."""
-    return _profile_or_404(store, user_id)
-
-
-@app.put("/api/profile/{user_id}", response_model=UserProfile)
-def put_profile(
-    profile: UserProfile,
-    user_id: str = PathParameter(min_length=1),
-    store: JsonProfileStore = Depends(get_profile_store),
-) -> UserProfile:
-    """Create or replace a user's saved financial profile."""
-    try:
-        return store.update_profile(user_id, profile)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.get("/api/memory/{user_id}", response_model=MemoryResponse)
-def get_memory(
-    user_id: str = PathParameter(min_length=1),
-    store: JsonProfileStore = Depends(get_profile_store),
-) -> MemoryResponse:
-    """List the notes the co-pilot remembers about a user."""
-    _profile_or_404(store, user_id)
-    try:
-        return MemoryResponse(notes=store.get_notes(user_id))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.post(
-    "/api/memory/{user_id}",
-    response_model=MemoryNote,
-    status_code=201,
-    responses={422: {"model": ErrorResponse}},
-)
-def create_memory_note(
-    request: NoteCreate,
-    user_id: str = PathParameter(min_length=1),
-    store: JsonProfileStore = Depends(get_profile_store),
-) -> MemoryNote:
-    """Save a new user-visible memory note."""
-    _profile_or_404(store, user_id)
-    try:
-        return store.add_note(user_id, request.content)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.patch(
-    "/api/memory/{user_id}/{note_id}",
-    response_model=MemoryNote,
-    responses={404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
-)
-def edit_memory_note(
-    request: NoteUpdate,
-    user_id: str = PathParameter(min_length=1),
-    note_id: str = PathParameter(min_length=1),
-    store: JsonProfileStore = Depends(get_profile_store),
-) -> MemoryNote:
-    """Edit one of a user's remembered notes."""
-    _profile_or_404(store, user_id)
-    try:
-        return store.update_note(user_id, note_id, request.content)
-    except ProfileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.delete(
-    "/api/memory/{user_id}/{note_id}",
-    response_model=NoteDeletedResponse,
-    responses={404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
-)
-def delete_memory_note(
-    user_id: str = PathParameter(min_length=1),
-    note_id: str = PathParameter(min_length=1),
-    store: JsonProfileStore = Depends(get_profile_store),
-) -> NoteDeletedResponse:
-    """Delete one of a user's remembered notes."""
-    _profile_or_404(store, user_id)
-    try:
-        store.delete_note(user_id, note_id)
-    except ProfileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return NoteDeletedResponse(deleted=True)
+def __getattr__(name: str) -> FastAPI:
+    # `uvicorn app.main:app` builds the app lazily, so importing this module
+    # (for example in tests) doesn't read the environment or create files.
+    global _default_app
+    if name == "app":
+        if _default_app is None:
+            _default_app = create_app()
+        return _default_app
+    raise AttributeError(name)

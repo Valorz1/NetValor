@@ -8,8 +8,8 @@ from typing import Any
 
 import yaml
 
-
 _FRONT_MATTER = re.compile(r"\A---\s*\r?\n(.*?)\r?\n---\s*(?:\r?\n|$)", re.DOTALL)
+REVIEW_STATUSES = frozenset({"draft", "approved"})
 _REQUIRED_FIELDS = {
     "id",
     "title",
@@ -26,6 +26,8 @@ _REQUIRED_FIELDS = {
 
 @dataclass(frozen=True)
 class Lesson:
+    """A parsed lesson: validated front matter plus Markdown body."""
+
     metadata: dict[str, Any]
     content: str
     path: Path
@@ -43,11 +45,23 @@ def parse_lesson(text: str, path: Path = Path("<lesson>")) -> Lesson:
     missing = _REQUIRED_FIELDS - metadata.keys()
     if missing:
         raise ValueError(f"{path}: missing fields: {', '.join(sorted(missing))}.")
-    for field in ("id", "title", "module", "difficulty", "jurisdiction", "licence", "review_status"):
+    for field in (
+        "id",
+        "title",
+        "module",
+        "difficulty",
+        "jurisdiction",
+        "licence",
+        "review_status",
+    ):
         if not isinstance(metadata[field], str) or not metadata[field].strip():
             raise ValueError(f"{path}: '{field}' must be a non-empty string.")
     if not isinstance(metadata["order"], int) or isinstance(metadata["order"], bool):
         raise ValueError(f"{path}: 'order' must be an integer.")
+    if metadata["review_status"] not in REVIEW_STATUSES:
+        raise ValueError(
+            f"{path}: 'review_status' must be one of {', '.join(sorted(REVIEW_STATUSES))}."
+        )
     if not isinstance(metadata["last_reviewed"], date):
         raise ValueError(f"{path}: 'last_reviewed' must be a date.")
     sources = metadata["sources"]
@@ -60,7 +74,9 @@ def parse_lesson(text: str, path: Path = Path("<lesson>")) -> Lesson:
             or not isinstance(source.get("url"), str)
         ):
             raise ValueError(f"{path}: each source needs a publisher and URL.")
-    content = text[match.end():].strip()
+        if not source["url"].startswith("https://"):
+            raise ValueError(f"{path}: source URLs must use https://.")
+    content = text[match.end() :].strip()
     if not content:
         raise ValueError(f"{path}: lesson content is empty.")
     return Lesson(metadata=metadata, content=content, path=path)
@@ -116,14 +132,12 @@ def chunk_lesson(
         raise ValueError("minimum_tokens cannot exceed target_tokens.")
 
     sections = split_lesson_by_heading(lesson)
-    content = "\n\n".join(
-        f"## {heading}\n\n{section}" for heading, section in sections if section
-    )
+    content = "\n\n".join(f"## {heading}\n\n{section}" for heading, section in sections if section)
     tokens = list(_TOKEN.finditer(content))
     if not tokens:
         return []
     heading_starts = [
-        (len(_TOKEN.findall(content[:match.start()])), match.group(1).strip())
+        (len(_TOKEN.findall(content[: match.start()])), match.group(1).strip())
         for match in re.finditer(r"(?m)^## (.+)$", content)
     ]
     chunks: list[dict[str, str]] = []

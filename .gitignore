@@ -1,1 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Tooling caches and reports
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local configuration and secrets — copy backend/.env.example instead
+.env
+.env.*
+!.env.example
+
+# Local data: databases, vector index and legacy JSON profiles
 backend/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Frontend (when added)
+node_modules/
+.next/
+
+# Evaluation reports
+backend/eval-report*.json

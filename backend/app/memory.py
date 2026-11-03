@@ -1,63 +1,89 @@
-"""User profile and editable memory-note storage for the NetValor API."""
+"""User financial profiles and user-controlled memory notes.
+
+Users can always see, edit and delete every note the co-pilot may use; the
+co-pilot never writes memory by itself. Profile JSON and note content are
+passed through the configured cipher so they can be encrypted at rest.
+"""
+
+from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+from app.db import Database, utc_now
+from app.finance import MAX_AMOUNT
+from app.security import Cipher, PlaintextCipher
+
+USER_ID_PATTERN = r"^[a-z0-9][a-z0-9_-]{2,31}$"
+_USER_ID = re.compile(USER_ID_PATTERN)
+MAX_NOTES_PER_USER = 100
+MAX_NOTE_LENGTH = 500
+
+Money = Annotated[Decimal, Field(ge=0, le=MAX_AMOUNT)]
+ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+NoteText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_NOTE_LENGTH)
+]
 
 
 class Debt(BaseModel):
     """A debt account and its monthly repayment."""
 
-    name: str = Field(min_length=1)
-    balance: Decimal = Field(ge=0)
-    apr: Decimal = Field(ge=0, le=1)
-    monthly_payment: Decimal = Field(ge=0)
+    model_config = ConfigDict(extra="forbid")
+
+    name: ShortText
+    balance: Money
+    apr: Decimal = Field(ge=0, le=1, description="Annual rate as a fraction: 0.249 = 24.9%.")
+    monthly_payment: Money
 
 
 class Goal(BaseModel):
     """A dated savings or debt-repayment goal."""
 
-    title: str = Field(min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
     type: Literal["debt_free", "safety_net"]
-    target_amount: Decimal = Field(ge=0)
-    target_date: date
+    target_amount: Money
+    target_date: date = Field(ge=date(2000, 1, 1), le=date(2100, 12, 31))
 
 
 class UserProfile(BaseModel):
     """Financial details and goals a user has chosen to save."""
 
-    name: str = Field(min_length=1)
-    monthly_take_home_income: Decimal = Field(ge=0)
-    monthly_essentials: Decimal = Field(ge=0)
-    savings: Decimal = Field(ge=0)
-    debts: list[Debt] = Field(default_factory=list)
-    goals: list[Goal] = Field(default_factory=list)
+    model_config = ConfigDict(extra="forbid")
+
+    name: ShortText
+    monthly_take_home_income: Money
+    monthly_essentials: Money
+    savings: Money
+    debts: list[Debt] = Field(default_factory=list, max_length=20)
+    goals: list[Goal] = Field(default_factory=list, max_length=20)
 
 
 class MemoryNote(BaseModel):
     """A user-visible note remembered by the co-pilot."""
 
     note_id: str
-    content: str = Field(min_length=1)
+    content: str
 
 
 class NoteCreate(BaseModel):
     """Content for a new remembered note."""
 
-    content: str = Field(min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
+    content: NoteText
 
 
-class NoteUpdate(BaseModel):
+class NoteUpdate(NoteCreate):
     """Replacement content for a remembered note."""
-
-    content: str = Field(min_length=1)
 
 
 class MemoryResponse(BaseModel):
@@ -72,136 +98,144 @@ class NoteDeletedResponse(BaseModel):
     deleted: bool
 
 
-@dataclass
-class _ProfileRecord:
-    profile: UserProfile
-    notes: list[MemoryNote]
-
-
 class ProfileNotFoundError(LookupError):
     """Raised when a requested profile or note does not exist."""
 
 
-class JsonProfileStore:
-    """Persist profiles and user-controlled memory in one JSON file per user."""
+class NoteLimitError(ValueError):
+    """Raised when a user already has the maximum number of notes."""
 
-    def __init__(self, profiles_dir: Path) -> None:
-        self._profiles_dir = Path(profiles_dir)
 
-    def seed_demo_user(self) -> None:
-        """Create the Alex demo profile and note unless the user already exists."""
-        if self._profile_path("alex").exists():
-            return
-        profile = UserProfile(
-            name="Alex",
-            monthly_take_home_income=Decimal("3600"),
-            monthly_essentials=Decimal("2000"),
-            savings=Decimal("3200"),
-            debts=[
-                Debt(
-                    name="Credit card",
-                    balance=Decimal("2450"),
-                    apr=Decimal("0.249"),
-                    monthly_payment=Decimal("350"),
-                )
-            ],
-            goals=[
-                Goal(
-                    title="A cushion for the unexpected",
-                    type="safety_net",
-                    target_amount=Decimal("6000"),
-                    target_date=date(2027, 6, 1),
-                ),
-                Goal(
-                    title="A fresh, debt-free start",
-                    type="debt_free",
-                    target_amount=Decimal("2450"),
-                    target_date=date(2027, 6, 1),
-                ),
-            ],
+def validate_user_id(user_id: str) -> str:
+    """Ensure a user ID is a safe, canonical identifier."""
+    if not _USER_ID.fullmatch(user_id):
+        raise ValueError(
+            "user_id must be 3-32 lower-case letters, numbers, '_' or '-', "
+            "starting with a letter or number."
         )
-        self._write_record(
-            "alex",
-            _ProfileRecord(
-                profile=profile,
-                notes=[
-                    MemoryNote(
-                        note_id=str(uuid4()),
-                        content="Wants progress without putting life on hold",
-                    )
-                ],
-            ),
-        )
+    return user_id
+
+
+class ProfileStore:
+    """Persist profiles and memory notes in SQLite."""
+
+    def __init__(self, database: Database, cipher: Cipher | None = None) -> None:
+        self._db = database
+        self._cipher = cipher or PlaintextCipher()
 
     def get_profile(self, user_id: str) -> UserProfile:
-        """Load a user's profile."""
-        return self._read_record(user_id).profile
+        with self._db.connect() as connection:
+            row = connection.execute(
+                "SELECT data FROM profiles WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        if row is None:
+            raise ProfileNotFoundError(f"Profile '{user_id}' was not found.")
+        return UserProfile.model_validate_json(self._cipher.decrypt(row["data"]))
 
-    def update_profile(self, user_id: str, profile: UserProfile) -> UserProfile:
-        """Create or replace a profile while preserving existing remembered notes."""
+    def find_profile(self, user_id: str) -> UserProfile | None:
         try:
-            notes = self._read_record(user_id).notes
+            return self.get_profile(user_id)
         except ProfileNotFoundError:
-            notes = []
-        self._write_record(user_id, _ProfileRecord(profile, notes))
+            return None
+
+    def put_profile(self, user_id: str, profile: UserProfile) -> UserProfile:
+        """Create or replace a user's profile. Memory notes are unaffected."""
+        data = self._cipher.encrypt(profile.model_dump_json())
+        with self._db.connect() as connection:
+            connection.execute(
+                "INSERT INTO profiles (user_id, data, updated_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, "
+                "updated_at = excluded.updated_at",
+                (user_id, data, utc_now()),
+            )
         return profile
 
     def get_notes(self, user_id: str) -> list[MemoryNote]:
-        """Return a copy of a user's remembered notes."""
-        return list(self._read_record(user_id).notes)
+        with self._db.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, content FROM memory_notes WHERE user_id = ? ORDER BY created_at, id",
+                (user_id,),
+            ).fetchall()
+        return [
+            MemoryNote(note_id=row["id"], content=self._cipher.decrypt(row["content"]))
+            for row in rows
+        ]
 
     def add_note(self, user_id: str, content: str) -> MemoryNote:
-        """Create and save a remembered note."""
-        record = self._read_record(user_id)
         note = MemoryNote(note_id=str(uuid4()), content=content)
-        record.notes.append(note)
-        self._write_record(user_id, record)
+        now = utc_now()
+        with self._db.connect() as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM memory_notes WHERE user_id = ?", (user_id,)
+            ).fetchone()[0]
+            if count >= MAX_NOTES_PER_USER:
+                raise NoteLimitError(
+                    f"You can save up to {MAX_NOTES_PER_USER} notes. Delete one to add another."
+                )
+            connection.execute(
+                "INSERT INTO memory_notes (id, user_id, content, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (note.note_id, user_id, self._cipher.encrypt(content), now, now),
+            )
         return note
 
     def update_note(self, user_id: str, note_id: str, content: str) -> MemoryNote:
-        """Edit a remembered note by its ID."""
-        record = self._read_record(user_id)
-        for index, note in enumerate(record.notes):
-            if note.note_id == note_id:
-                updated = MemoryNote(note_id=note_id, content=content)
-                record.notes[index] = updated
-                self._write_record(user_id, record)
-                return updated
-        raise ProfileNotFoundError(f"Memory note '{note_id}' was not found.")
+        with self._db.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE memory_notes SET content = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+                (self._cipher.encrypt(content), utc_now(), note_id, user_id),
+            )
+        if cursor.rowcount == 0:
+            raise ProfileNotFoundError(f"Memory note '{note_id}' was not found.")
+        return MemoryNote(note_id=note_id, content=content)
 
     def delete_note(self, user_id: str, note_id: str) -> None:
-        """Delete a remembered note by its ID."""
-        record = self._read_record(user_id)
-        for index, note in enumerate(record.notes):
-            if note.note_id == note_id:
-                del record.notes[index]
-                self._write_record(user_id, record)
-                return
-        raise ProfileNotFoundError(f"Memory note '{note_id}' was not found.")
+        with self._db.connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM memory_notes WHERE id = ? AND user_id = ?", (note_id, user_id)
+            )
+        if cursor.rowcount == 0:
+            raise ProfileNotFoundError(f"Memory note '{note_id}' was not found.")
 
-    def _profile_path(self, user_id: str) -> Path:
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", user_id):
-            raise ValueError("user_id may contain only letters, numbers, '_' and '-'.")
-        return self._profiles_dir / f"{user_id}.json"
+    def delete_all_notes(self, user_id: str) -> int:
+        with self._db.connect() as connection:
+            cursor = connection.execute("DELETE FROM memory_notes WHERE user_id = ?", (user_id,))
+        return cursor.rowcount
 
-    def _read_record(self, user_id: str) -> _ProfileRecord:
-        path = self._profile_path(user_id)
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            raise ProfileNotFoundError(f"Profile '{user_id}' was not found.") from None
-        return _ProfileRecord(
-            profile=UserProfile.model_validate(data["profile"]),
-            notes=[MemoryNote.model_validate(note) for note in data["notes"]],
+    def import_record(self, user_id: str, profile: UserProfile, notes: list[MemoryNote]) -> None:
+        """Insert a legacy profile and its notes, keeping existing data intact."""
+        now = utc_now()
+        with self._db.connect() as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO profiles (user_id, data, updated_at) VALUES (?, ?, ?)",
+                (user_id, self._cipher.encrypt(profile.model_dump_json()), now),
+            )
+            for note in notes:
+                connection.execute(
+                    "INSERT OR IGNORE INTO memory_notes "
+                    "(id, user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (note.note_id, user_id, self._cipher.encrypt(note.content), now, now),
+                )
+
+
+def demo_profile() -> tuple[UserProfile, list[str]]:
+    """The Alex demo profile used for local development only."""
+    profile = UserProfile.model_validate(
+        json.loads(
+            """{
+            "name": "Alex",
+            "monthly_take_home_income": "3600",
+            "monthly_essentials": "2000",
+            "savings": "3200",
+            "debts": [{"name": "Credit card", "balance": "2450", "apr": "0.249",
+                       "monthly_payment": "350"}],
+            "goals": [
+                {"title": "A cushion for the unexpected", "type": "safety_net",
+                 "target_amount": "6000", "target_date": "2027-06-01"},
+                {"title": "A fresh, debt-free start", "type": "debt_free",
+                 "target_amount": "2450", "target_date": "2027-06-01"}
+            ]
+        }"""
         )
-
-    def _write_record(self, user_id: str, record: _ProfileRecord) -> None:
-        path = self._profile_path(user_id)
-        self._profiles_dir.mkdir(parents=True, exist_ok=True)
-        data = {
-            "profile": json.loads(record.profile.model_dump_json()),
-            "notes": [json.loads(note.model_dump_json()) for note in record.notes],
-        }
-        temporary_path = path.with_suffix(".tmp")
-        temporary_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        temporary_path.replace(path)
+    )
+    return profile, ["Wants progress without putting life on hold"]

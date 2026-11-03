@@ -1,6 +1,11 @@
-fastapi
-uvicorn[standard]
-httpx
-chromadb
-PyYAML
-pytest>=8.0
+# Runtime dependencies. Compatible-release pins keep installs reproducible
+# while allowing patch/minor security fixes. See requirements-dev.txt for tools.
+fastapi~=0.141.1
+uvicorn[standard]~=0.52.1
+httpx~=0.28.1
+anyio~=4.13
+pydantic~=2.13
+pydantic-settings~=2.14
+cryptography~=50.0
+chromadb~=1.5.9
+PyYAML~=6.0

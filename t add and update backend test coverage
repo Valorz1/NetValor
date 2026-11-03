@@ -1,0 +1,28 @@
+ backend/.env                                       |   7 [31m-[m
+ backend/app/__pycache__/chat.cpython-314.pyc       | Bin [31m27546[m -> [32m0[m bytes
+ backend/app/__pycache__/finance.cpython-314.pyc    | Bin [31m12912[m -> [32m0[m bytes
+ backend/app/__pycache__/llm.cpython-314.pyc        | Bin [31m5342[m -> [32m0[m bytes
+ backend/app/__pycache__/main.cpython-314.pyc       | Bin [31m28654[m -> [32m0[m bytes
+ backend/app/__pycache__/memory.cpython-314.pyc     | Bin [31m14905[m -> [32m0[m bytes
+ backend/app/__pycache__/retrieval.cpython-314.pyc  | Bin [31m6906[m -> [32m0[m bytes
+ .../knowledge/__pycache__/__init__.cpython-314.pyc | Bin [31m215[m -> [32m0[m bytes
+ .../__pycache__/embeddings.cpython-314.pyc         | Bin [31m5281[m -> [32m0[m bytes
+ .../knowledge/__pycache__/lessons.cpython-314.pyc  | Bin [31m10303[m -> [32m0[m bytes
+ .../scripts/__pycache__/ingest.cpython-314.pyc     | Bin [31m6010[m -> [32m0[m bytes
+ backend/tests/__init__.py                          |   0
+ .../test_api.cpython-314-pytest-9.0.3.pyc          | Bin [31m33267[m -> [32m0[m bytes
+ .../test_finance.cpython-314-pytest-9.0.3.pyc      | Bin [31m33761[m -> [32m0[m bytes
+ backend/tests/conftest.py                          | 198 [32m+++++[m
+ backend/tests/test_api.py                          | 398 [32m++++++[m[31m---[m
+ backend/tests/test_auth.py                         | 171 [32m++++[m
+ backend/tests/test_calc_intent.py                  | 278 [32m++++++[m
+ backend/tests/test_chat.py                         | 949 [32m+++++++++++++++[m[31m------[m
+ backend/tests/test_cli.py                          |  81 [32m++[m
+ backend/tests/test_evals.py                        |  51 [32m++[m
+ backend/tests/test_finance.py                      | 153 [32m+++[m[31m-[m
+ backend/tests/test_grounding.py                    | 173 [32m++++[m
+ backend/tests/test_knowledge.py                    | 364 [32m+++++[m[31m---[m
+ backend/tests/test_ratelimit.py                    |  59 [32m++[m
+ backend/tests/test_security.py                     | 151 [32m++++[m
+ backend/tests/test_storage.py                      | 333 [32m++++++++[m
+ 27 files changed, 2836 insertions(+), 530 deletions(-)
