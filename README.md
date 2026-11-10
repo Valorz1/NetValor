@@ -39,7 +39,7 @@ The backend has 364 offline tests and an evaluation suite that checks the co-pil
 
 I’m building NetValor for people who find money confusing. A lot of people in the UK were never taught how to manage their money or protect themselves, and most of the help out there is either full of jargon or quietly trying to sell you something.
 
-I believe understanding money is a basic right, and it shouldn’t depend on how much you earn or where you come from. That goes for someone starting their first job, someone close to retirement and everyone in between.
+I believe financial literacy is a fundamental right. Whether you're young, old or just starting your career, financial knowledge shouldn’t be a privilege reserved for the wealthy. It should be accessible to everyone, regardless of their income or background.
 
 That’s why NetValor is completely free, and I’m not building it to make money. There are no ads, no commission and nothing to sell. NetValor is there to teach, not to give financial advice, and when someone needs more help it points them to free, trusted services.
 
