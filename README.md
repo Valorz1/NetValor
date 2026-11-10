@@ -37,13 +37,13 @@ The backend has 364 offline tests and an evaluation suite that checks the co-pil
 
 ## Why I'm building this
 
-I'm building NetValor for people who find money confusing. A lot of people in the UK were never taught how money works, how to manage it, or how to protect themselves, and most of the advice out there is full of jargon or quietly trying to sell you something.
+I’m building NetValor for people who find money confusing. In the UK, far too many people were never taught how to manage or protect their finances, and most of the available "help" is either buried in jargon or quietly trying to sell a product.
 
-I believe everyone has the right to understand their own money. Financial knowledge should be for everybody, whatever their income or background, and not something only the well-off get to have.
+I believe financial literacy is a fundamental right. Whether you're young, old or just starting your career, financial knowledge shouldn’t be a privilege reserved for the wealthy. It should be accessible to everyone, regardless of their income or background.
 
-That's why NetValor is free and I'm not building it to make money. There are no ads, no commission and nothing to sell. NetValor teaches; it doesn't give financial advice, and it points people to free, trusted help when they need it.
+That’s why NetValor is 100% free. This isn't a money-making venture. There are no ads, no commissions, and nothing to sell. NetValor is an educational tool designed to teach—not to give financial advice—and to point people toward trusted, free resources when they need them most.
 
-Building it is also how I'm learning to make a full RAG application properly, from design and content through to testing and safety.
+Alongside this mission, building NetValor is also how I am teaching myself to develop a full RAG (Retrieval-Augmented Generation) application from the ground up, covering everything from design and content to testing and safety.
 
 ## The app
 
