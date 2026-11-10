@@ -45,6 +45,13 @@ That’s why NetValor is completely free, and I’m not building it to make mone
 
 Building NetValor is also how I’m teaching myself to make a full RAG (retrieval-augmented generation) application from scratch, from the design and content through to testing and safety.
 
+## The problem
+
+- **24% of UK adults (13.1 million people) have low financial resilience**, meaning little savings, heavy bills or credit, or missed payments. (FCA Financial Lives 2024)
+- **1 in 10 UK adults have no cash savings at all.** (FCA Financial Lives 2024)
+
+Sources: [FCA Financial Lives survey](https://www.fca.org.uk/financial-lives)
+
 ## The app
 
 The app has five areas, all designed in Figma:
