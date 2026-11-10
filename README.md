@@ -37,13 +37,13 @@ The backend has 364 offline tests and an evaluation suite that checks the co-pil
 
 ## Why I'm building this
 
-I’m building NetValor for people who find money confusing. In the UK, far too many people were never taught how to manage or protect their finances, and most of the available "help" is either buried in jargon or quietly trying to sell a product.
+I’m building NetValor for people who find money confusing. A lot of people in the UK were never taught how to manage their money or protect themselves, and most of the help out there is either full of jargon or quietly trying to sell you something.
 
-I believe financial literacy is a fundamental right. Whether you're young, old or just starting your career, financial knowledge shouldn’t be a privilege reserved for the wealthy. It should be accessible to everyone, regardless of their income or background.
+I believe understanding money is a basic right, and it shouldn’t depend on how much you earn or where you come from. That goes for someone starting their first job, someone close to retirement and everyone in between.
 
-That’s why NetValor is 100% free. This isn't a money-making venture. There are no ads, no commissions, and nothing to sell. NetValor is an educational tool designed to teach—not to give financial advice—and to point people toward trusted, free resources when they need them most.
+That’s why NetValor is completely free, and I’m not building it to make money. There are no ads, no commission and nothing to sell. NetValor is there to teach, not to give financial advice, and when someone needs more help it points them to free, trusted services.
 
-Alongside this mission, building NetValor is also how I am teaching myself to develop a full RAG (Retrieval-Augmented Generation) application from the ground up, covering everything from design and content to testing and safety.
+Building NetValor is also how I’m teaching myself to make a full RAG (retrieval-augmented generation) application from scratch, from the design and content through to testing and safety.
 
 ## The app
 
