@@ -37,9 +37,13 @@ The backend has 364 offline tests and an evaluation suite that checks the co-pil
 
 ## Why I'm building this
 
-Learning about money shouldn't depend on already knowing the jargon. A lot of advice online is either too general or quietly trying to sell you something. I wanted to see whether carefully grounded AI could make financial education clearer and more personal, without pretending a chatbot is a financial adviser.
+I'm building NetValor for people who find money confusing. A lot of people in the UK were never taught how money works, how to manage it, or how to protect themselves, and most of the advice out there is full of jargon or quietly trying to sell you something.
 
-It's also how I'm learning to build a full RAG application properly, from design and content through to retrieval, APIs, testing and safety.
+I believe everyone has the right to understand their own money. Financial knowledge should be for everybody, whatever their income or background, and not something only the well-off get to have.
+
+That's why NetValor is free and I'm not building it to make money. There are no ads, no commission and nothing to sell. NetValor teaches; it doesn't give financial advice, and it points people to free, trusted help when they need it.
+
+Building it is also how I'm learning to make a full RAG application properly, from design and content through to testing and safety.
 
 ## The app
 
